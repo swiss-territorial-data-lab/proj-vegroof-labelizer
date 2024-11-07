@@ -9,6 +9,75 @@ import geopandas as gpd
 from functools import partial
 from src.processing import show_confusion_matrix
 
+def menu_mode_choice(self, mode_window):
+    def ok_button_pressed(window):
+        #checked_items = tree.get_checked()
+        #checked_texts = [tree.item(item, "text") for item in checked_items]
+        #self.shown_cat = checked_texts
+        self.show_image()
+        self.update_infos()
+        window.destroy()
+
+    # Retrieve categories from roofs
+    if len(self.new_roofs) == 0 or self.polygon_path == None:
+        messagebox.showwarning("Information", "No polygon file loaded!")
+        return
+    
+    categories = list(self.new_roofs[self.input_class_name].unique())
+
+    # Create a Toplevel window (popup)
+    #mode_window = Toplevel(self.root)
+    mode_window.title("Categories selection")
+    root_pos = [self.root.winfo_x(), self.root.winfo_y()]
+    root_dim = [self.root.winfo_width(), self.root.winfo_height()]
+    mode_window.geometry(f"300x350+{int(root_pos[0]+root_dim[0]/2-150)}+{int(root_pos[1]+root_dim[1]/2-300)}")
+
+    # select mode
+    label = Label(mode_window, text="Select mode:")
+    label.pack(anchor='w', padx=10)
+
+    combobox_mode = ttk.Combobox(mode_window, values=['labelizer', 'correcter'])
+    default_combobox = "Select an option" if self.order_var == None else self.order_var
+    combobox_mode.set(default_combobox)  # Texte par défaut
+    combobox_mode.pack(pady=20)
+
+    # select label column
+    label = Label(mode_window, text="Select the column with the class name:")
+    label.pack(anchor='w', padx=10)
+
+    combobox_label = ttk.Combobox(mode_window, values=list(self.new_roofs.columns))
+    default_combobox = "Select an option" if self.order_var == None else self.order_var
+    combobox_label.set(default_combobox)  # Texte par défaut
+    combobox_label.pack(pady=20)
+
+    # map label to class
+    label = Label(mode_window, text='Values mapping (only in "labelizer" mode):')
+    label.pack(anchor='w', padx=10)
+
+    frame_bare = Frame(mode_window, width=250, height=35)
+    frame_bare.pack()
+    frame_bare.pack_propagate(False) 
+    label = Label(frame_bare, text='bare: ')
+    label.pack(side='left')
+    combobox_bare = ttk.Combobox(frame_bare, values=range(4), width=15)
+    default_combobox = "Select an option" if self.order_var == None else self.order_var
+    combobox_bare.set(default_combobox)  # Texte par défaut
+    combobox_bare.pack(side='right')
+
+    frame_vege = Frame(mode_window, width=250, height=35)
+    frame_vege.pack()
+    frame_vege.pack_propagate(False) 
+    label = Label(frame_vege, text='vegetation: ')
+    label.pack(side='left')
+    combobox_vege = ttk.Combobox(frame_vege, values=list(self.new_roofs.columns), width=15)
+    default_combobox = "Select an option" if self.order_var == None else self.order_var
+    combobox_vege.set(default_combobox)  # Texte par défaut
+    combobox_vege.pack(side='right')
+    
+    # Add ok button
+    ok_button = ttk.Button(mode_window, text='OK', command=partial(ok_button_pressed, mode_window))
+    ok_button.pack(pady=20)
+
 def load(self, mode=0):
     # load polygon
     if mode in [0,1]:
@@ -19,6 +88,13 @@ def load(self, mode=0):
         if self.polygon_path:
             self.roofs = gpd.read_file(self.polygon_path)
             self.new_roofs = gpd.read_file(self.polygon_path)
+            
+            # show mode choice window
+            top_level = Toplevel(self.root)
+            menu_mode_choice(self, top_level)
+            self.root.wait_window(top_level)    # wait for the choice of the mode to be finished
+            
+            # continue to process input polygons
             if self.mode == 'labelizer':
                 self.new_roofs.rename(columns={self.input_class_name:'class_binary'}, inplace=True)
                 self.input_class_name = 'class_binary'
@@ -103,8 +179,6 @@ def save(self):
                 do_show=True,
             )
 
-    return
-
 
 def exit(self):
     if self.UnsavedChanges == True:
@@ -116,7 +190,7 @@ def exit(self):
         else:
             print("User clicked Cancel")
             return
-    quit()
+    self.root.quit()
 
 
 def order(self):
@@ -149,13 +223,14 @@ def order(self):
     # Create a Toplevel window (popup)
     order_window = Toplevel(self.root)
     order_window.title("Categories selection")
-    order_window.geometry("300x200")
-
+    root_pos = [self.root.winfo_x(), self.root.winfo_y()]
+    root_dim = [self.root.winfo_width(), self.root.winfo_height()]
+    order_window.geometry(f"300x300+{int(root_pos[0]+root_dim[0]/2-150)}+{int(root_pos[1]+root_dim[1]/2-150)}")
     # add label
     label = Label(order_window, text="Select ordering item:")
     label.pack()
 
-    # Créer la Combobox
+    # create the Combobox
     combobox = ttk.Combobox(order_window, values=metadatas)
     default_combobox = "Select an option" if self.order_var == None else self.order_var
     combobox.set(default_combobox)  # Texte par défaut
@@ -196,7 +271,9 @@ def open_list_cat(self):
     # Create a Toplevel window (popup)
     checkbox_window = Toplevel(self.root)
     checkbox_window.title("Categories selection")
-    checkbox_window.geometry("300x300")
+    root_pos = [self.root.winfo_x(), self.root.winfo_y()]
+    root_dim = [self.root.winfo_width(), self.root.winfo_height()]
+    checkbox_window.geometry(f"300x300+{int(root_pos[0]+root_dim[0]/2-150)}+{int(root_pos[1]+root_dim[1]/2-150)}")
 
     # add label
     label = Label(checkbox_window, text="Select categories to see:")
@@ -248,7 +325,9 @@ def open_list_meta(self):
     # Create a Toplevel window (popup)
     checkbox_window = Toplevel(self.root)
     checkbox_window.title("Categories selection")
-    checkbox_window.geometry("300x300")
+    root_pos = [self.root.winfo_x(), self.root.winfo_y()]
+    root_dim = [self.root.winfo_width(), self.root.winfo_height()]
+    checkbox_window.geometry(f"300x300+{int(root_pos[0]+root_dim[0]/2-150)}+{int(root_pos[1]+root_dim[1]/2-150)}")
 
     # add label
     label = Label(checkbox_window, text="Select categories to see:")

@@ -1,26 +1,21 @@
 import tkinter as tk
 from tkinter import ttk
 
-# Create the main window
 root = tk.Tk()
-root.geometry("300x200")
+root.title("Fixed Width Combobox Example")
 
-# Options for the combobox
+# Create a frame to hold the label and combobox
+frame = tk.Frame(root, width=300, height=50)
+frame.pack(padx=10, pady=10)
+frame.pack_propagate(False)
+
+# Create a label
+label = tk.Label(frame, text="Choose option:")
+label.pack(side="left", padx=5)
+
+# Create a combobox with a fixed width
 options = ["Option 1", "Option 2", "Option 3"]
+combobox = ttk.Combobox(frame, values=options, width=10)  # Width in characters
+combobox.pack(side="right", padx=5)
 
-# Create the Combobox
-combobox = ttk.Combobox(root, values=options)
-combobox.set("Select an option")  # Default text
-combobox.pack(pady=20)
-
-# Function to execute on selection change
-def on_selection(event):
-    selected_value = combobox.get()
-    print(f"Selected: {selected_value}")
-    # You can perform additional actions here based on selected_value
-
-# Bind the selection event to the function
-combobox.bind("<<ComboboxSelected>>", on_selection)
-
-# Run the application
 root.mainloop()

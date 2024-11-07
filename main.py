@@ -4,6 +4,7 @@ from tkinter import Tk, Menu, Label, Button, Frame, font, filedialog, messagebox
 from tkinter import ttk
 from PIL import Image, ImageTk
 import numpy as np
+import fiona # for .exe creation
 import geopandas as gpd
 import rasterio
 from rasterio.mask import mask
@@ -68,7 +69,9 @@ class ImageViewer:
         self.custom_font = font.Font(family="Helvetica", size=10, weight="bold")
 
         # Set the main window
-        root.geometry("800x800")
+        screen_width = root.winfo_screenwidth()
+        screen_height = root.winfo_screenheight()
+        root.geometry(f"800x800+{int(screen_width/2-400)}+{int(screen_height/2-400)}")
         root.resizable(False,False)
         root.configure(bg="#2c3e50")
         
@@ -350,8 +353,4 @@ def main():
 
 
 if __name__ == '__main__':
-    mydict = {
-        'test1': 0,
-        'test2': 1,
-    }
     main()
