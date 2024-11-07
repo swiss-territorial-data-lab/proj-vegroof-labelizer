@@ -8,13 +8,13 @@ import geopandas as gpd
 import rasterio
 from rasterio.mask import mask
 from functools import partial
-
 from src.menu_utils import *
 
 # Global variables (to set before running the software)
 # ==============================
 INPUT_CLASS_NAME = "class"  # name of the column that contain the category in the gpkg file to process
-IS_INPUT_BINARY = False     # if the gpkg file to process is one with binary classes (e.g. 'v' and 'b' or 1 and 0)
+#IS_INPUT_BINARY = False     # if the gpkg file to process is one with binary classes (e.g. 'v' and 'b' or 1 and 0)
+MODE = 'correcter'  # to choose in ['labelizer', 'correcter']
 INPUT_BIN_CLASS_VALUES = {  # if the gpkg file to process is one, with binary classes, the values used for each class
     "bare": 0,
     "vegetated": 1,
@@ -48,12 +48,20 @@ class ImageViewer:
         self.order_var = None
         self.order_asc = True
 
+        self.label_to_class_name = {
+            'b': ['bare', 0],
+            't': ['terrace', 1],
+            's': ['spontaneous', 2],
+            'e': ['extensive', 3],
+            'l': ['lawn', 4],
+            'i': ['intensive', 5],
+        }
 
         self.metadata = {}
 
         # _ input variables
         self.input_class_name = INPUT_CLASS_NAME
-        self.is_input_binary = IS_INPUT_BINARY
+        self.mode = MODE
         self.input_bin_class_values = INPUT_BIN_CLASS_VALUES
 
         # Set a custom font style for the app
@@ -174,9 +182,16 @@ class ImageViewer:
         self.intensive_button = ttk.Button(self.class_button_frame, text="Intensive", command=partial(self.change_category, "i"))
         self.intensive_button.pack(side="left", padx=5)
 
+        # key mapping
+        root.bind('a', lambda event: self.show_previous_image())
+        root.bind('d', lambda event: self.show_next_image())
+        root.bind('<Left>', lambda event: self.show_previous_image())
+        root.bind('<Right>', lambda event: self.show_next_image())
+        root.bind('<space>', lambda event: self.show_next_image())
+        root.bind('<Control-s>', lambda event: save(self))
 
         # temp-------------------
-        """self.polygon_path = "D:/GitHubProjects/STDL_Classifier/data/sources/gt_MNC_filtered.gpkg"
+        self.polygon_path = "D:/GitHubProjects/STDL_Classifier/data/sources/gt_MNC_filtered.gpkg"
         self.raster_path = "D:/GitHubProjects/STDL_Classifier/data/sources/scratch_dataset"
         self.roofs = gpd.read_file("D:/GitHubProjects/STDL_Classifier/data/sources/gt_MNC_filtered.gpkg")
         self.new_roofs = gpd.read_file("D:/GitHubProjects/STDL_Classifier/data/sources/gt_MNC_filtered.gpkg")
@@ -188,7 +203,7 @@ class ImageViewer:
                         file_src = file_src.replace('\\','/')
                         self.list_rasters_src.append(file_src)
         self.shown_cat = list(self.new_roofs[self.input_class_name].unique())
-        self.update_infos()"""
+        self.update_infos()
         # -----------------------
 
         self.show_image()
@@ -206,7 +221,7 @@ class ImageViewer:
             self.roof_index += 1
         roof = self.roofs_to_show.iloc[self.roof_index]
         self.egid = roof.EGID
-        cat = roof['class']
+        cat = roof[self.input_class_name]
         geom = roof.geometry
 
         matching_rasters = []
@@ -223,7 +238,7 @@ class ImageViewer:
 
         # test if polygon match with one or multiple rasters:    
         if len(matching_rasters) == 0:
-            image = Image.open("./no_image.png").resize((512, 512), Image.Resampling.LANCZOS)
+            image = Image.open("./src/no_image.png").resize((512, 512), Image.Resampling.LANCZOS)
             self.photo = ImageTk.PhotoImage(image)
             self.image.config(image=self.photo)
         elif len(matching_rasters) == 1:
@@ -263,10 +278,13 @@ class ImageViewer:
                 additional_padding = np.zeros((1,padded_image.shape[1],3)) if ax == 0 else np.zeros((padded_image.shape[0], 1,3))
                 padded_image = np.concatenate((padded_image, additional_padding), axis=ax)
 
-        # _show image
+        # _show image and title
         image_final = Image.fromarray(np.uint8(padded_image))
         self.photo = ImageTk.PhotoImage(image_final)
-        self.title.config(text=str(int(self.egid)) + ' - ' + cat)
+        if self.mode == 'correcter':
+            self.title.config(text=str(int(self.egid)) + ' - ' + self.label_to_class_name[cat][0])
+        else:
+            self.title.config(text=str(int(self.egid)) + ' - ' + cat)
         self.image.config(image=self.photo)
 
     def show_next_image(self):
@@ -309,6 +327,7 @@ class ImageViewer:
 
     def change_category(self, cat):
         self.new_roofs.loc[self.new_roofs['EGID'] == self.egid, 'class'] = cat
+        self.roofs_to_show.loc[self.roofs_to_show['EGID'] == self.egid, 'class'] = cat
         self.UnsavedChanges = True
         self.changes_log.append(f"Changing category of {self.egid} to '{cat}'")
         self.show_next_image()
@@ -331,4 +350,8 @@ def main():
 
 
 if __name__ == '__main__':
+    mydict = {
+        'test1': 0,
+        'test2': 1,
+    }
     main()

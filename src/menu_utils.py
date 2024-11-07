@@ -1,11 +1,13 @@
 import tkinter as tk
 import os
+import numpy as np
 from tkinter import Tk, Menu, Label, Button, Frame, font, filedialog, messagebox, Checkbutton, Scrollbar, IntVar, Canvas,Toplevel
 from tkinter.scrolledtext import ScrolledText
 from tkinter import ttk
 from ttkwidgets import CheckboxTreeview
 import geopandas as gpd
 from functools import partial
+from src.processing import show_confusion_matrix
 
 def load(self, mode=0):
     # load polygon
@@ -15,10 +17,19 @@ def load(self, mode=0):
         filetypes=[("GeoPackage Files", "*.gpkg"), ("All Files", "*.*")]
         )
         if self.polygon_path:
-            print(f"Selected file: {self.polygon_path}")
             self.roofs = gpd.read_file(self.polygon_path)
             self.new_roofs = gpd.read_file(self.polygon_path)
-            self.roofs_to_show = gpd.read_file(self.polygon_path)
+            if self.mode == 'labelizer':
+                self.new_roofs.rename(columns={self.input_class_name:'class_binary'}, inplace=True)
+                self.input_class_name = 'class_binary'
+                for cat, val in self.input_bin_class_values.items():
+                    self.new_roofs.class_binary = self.new_roofs.class_binary.astype('string')
+                    self.new_roofs.loc[self.new_roofs.class_binary.astype('string') == str(val), 'class_binary'] = cat
+
+                self.new_roofs['class'] = np.nan
+            """else: # if mode = 'correcter'
+                self.new_roofs = """
+            self.roofs_to_show = self.new_roofs.copy()
             self.shown_cat = list(self.new_roofs[self.input_class_name].unique())
 
     # load rasters
@@ -59,14 +70,19 @@ def save(self):
         new_polygon_name = ''.join(new_polygon_name)
         new_polygon_src = os.path.join(new_polygon_path, new_polygon_name)
 
-        self.new_roofs.to_file(new_polygon_src)
-        self.new_roofs.drop('geometry', axis=1).to_csv(new_polygon_src+".csv", sep=';', index=None)
+        # save roofs to geopackage and csv
+        if self.mode == 'labelizer':
+            self.new_roofs.dropna(subset=['class']).to_file(new_polygon_src)
+            self.new_roofs.dropna(subset=['class']).drop('geometry', axis=1).to_csv(new_polygon_src+".csv", sep=';', index=None)
+        else: # if self.mode  = 'correcter
+            self.new_roofs.to_file(new_polygon_src)
+            self.new_roofs.drop('geometry', axis=1).to_csv(new_polygon_src+".csv", sep=';', index=None)
 
-        # create list of removed samples
-        with open(os.path.join(new_polygon_path, 'list_removed_samples.txt'), 'w') as file:
+
+        # save list of changes
+        with open(os.path.join(new_polygon_path, 'modification_logs.txt'), 'w') as file:
             for egid in self.changes_log:
                 file.write(f"{egid}\n")
-            #file = self.list_removed_samples
     except AttributeError:
         _ = messagebox.showerror("Error", "A problem happened! Either the path to the polygon has not been set or is non-existant.")
     else:
@@ -74,7 +90,18 @@ def save(self):
         self.UnsavedChanges = False
 
         # compute visualization of data analysis
-        
+        if self.mode == 'correcter':
+            pred = [self.label_to_class_name[x][1] for x in list(self.new_roofs['class'].values)]
+            true = [self.label_to_class_name[x][1] for x in list(self.roofs['class'].values)]
+            show_confusion_matrix(
+                y_pred=pred,
+                y_true=true,
+                target_src=os.path.join(new_polygon_path, 'performances.png'),
+                class_labels=[x[0] for x in self.label_to_class_name],
+                title="Performances",
+                do_save=True,
+                do_show=True,
+            )
 
     return
 
