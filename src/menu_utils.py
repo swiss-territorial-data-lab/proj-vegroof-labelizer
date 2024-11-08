@@ -1,6 +1,7 @@
 import tkinter as tk
 import os
 import numpy as np
+import pandas as pd
 from tkinter import Tk, Menu, Label, Button, Frame, font, filedialog, messagebox, Checkbutton, Scrollbar, IntVar, Canvas,Toplevel
 from tkinter.scrolledtext import ScrolledText
 from tkinter import ttk
@@ -9,24 +10,75 @@ import geopandas as gpd
 from functools import partial
 from src.processing import show_confusion_matrix
 
+
 def menu_mode_choice(self, mode_window):
-    def ok_button_pressed(window):
-        #checked_items = tree.get_checked()
-        #checked_texts = [tree.item(item, "text") for item in checked_items]
-        #self.shown_cat = checked_texts
-        self.show_image()
-        self.update_infos()
-        window.destroy()
+    def ok_button_pressed(return_value):
+        if combobox_mode.get() != 'Select and option' and combobox_class != 'Select an option' and combobox_bare != '-' and combobox_vege != '-':
+            self.mode = combobox_mode.get()
+            self.input_class_name = combobox_class.get()
+            self.input_bin_class_values['bare'] = combobox_bare.get()
+            self.input_bin_class_values['vegetated'] = combobox_vege.get()
+
+            if self.mode == 'labelizer':
+                self.new_roofs = self.new_roofs.loc[self.new_roofs[self.input_class_name].isin(self.input_bin_class_values.values())]
+            return_value[0] = True
+            mode_window.destroy()
+    
+    def mode_chosen(event):
+        mode = combobox_mode.get()
+        if mode in ['labelizer', 'correcter']:
+            combobox_class.config(state="enabled")
+            if combobox_class.get() != 'Select an option':
+                class_chosen(event)
+            if self.mode == 'correcter':
+                combobox_bare.config(state='disabled')
+                combobox_vege.config(state='disabled')
+                combobox_bare.set('-')
+                combobox_vege.set('-')
+                mapping_classes(event)
+        else:
+            print('no mode selected!')
+
+    def class_chosen(event):  
+        class_name = combobox_class.get()
+        class_values = list(self.new_roofs[class_name].unique())
+        mode = combobox_mode.get()
+
+        if mode == 'labelizer':
+            if len(class_values) > 2:
+                messagebox.showwarning("warning", "The number of different values is greater than 2. After choosing the one corresponding to bare and vegetation samples, the samples with other values will be dismissed!")
+                mode_window.focus_set()
+
+            # set mapping
+            combobox_bare.config(state='enabled', values=class_values)
+            combobox_vege.config(state='enabled', values=class_values)
+        elif mode == 'correcter':
+            if set(class_values) != set(['b', 't', 's', 'i', 'e', 'l']):
+                messagebox.showerror("error", "The values of the class don't match the ones for multi class!")
+                mode_window.focus_set()
+                return
+            else:
+                ok_button.config(state='enabled')
+        else:
+            print('no class name selected!')
+
+    def mapping_classes(event):
+        bare_value = combobox_bare.get()
+        vege_value = combobox_vege.get()
+        if bare_value != '-' and vege_value != '-' and bare_value != vege_value:
+            ok_button.config(state='enabled')
+        else:
+            ok_button.config(state='disabled')
+
+    # result that say if the mode has been correctly set
+    return_value = [False]
 
     # Retrieve categories from roofs
     if len(self.new_roofs) == 0 or self.polygon_path == None:
         messagebox.showwarning("Information", "No polygon file loaded!")
         return
-    
-    categories = list(self.new_roofs[self.input_class_name].unique())
 
     # Create a Toplevel window (popup)
-    #mode_window = Toplevel(self.root)
     mode_window.title("Categories selection")
     root_pos = [self.root.winfo_x(), self.root.winfo_y()]
     root_dim = [self.root.winfo_width(), self.root.winfo_height()]
@@ -37,18 +89,17 @@ def menu_mode_choice(self, mode_window):
     label.pack(anchor='w', padx=10)
 
     combobox_mode = ttk.Combobox(mode_window, values=['labelizer', 'correcter'])
-    default_combobox = "Select an option" if self.order_var == None else self.order_var
-    combobox_mode.set(default_combobox)  # Texte par défaut
+    combobox_mode.set("Select an option")  # Texte par défaut
     combobox_mode.pack(pady=20)
 
     # select label column
     label = Label(mode_window, text="Select the column with the class name:")
     label.pack(anchor='w', padx=10)
 
-    combobox_label = ttk.Combobox(mode_window, values=list(self.new_roofs.columns))
-    default_combobox = "Select an option" if self.order_var == None else self.order_var
-    combobox_label.set(default_combobox)  # Texte par défaut
-    combobox_label.pack(pady=20)
+    combobox_class = ttk.Combobox(mode_window, values=list(self.new_roofs.columns))
+    combobox_class.set("Select an option")  # Texte par défaut
+    combobox_class.pack(pady=20)
+    combobox_class.config(state="disabled")
 
     # map label to class
     label = Label(mode_window, text='Values mapping (only in "labelizer" mode):')
@@ -60,9 +111,9 @@ def menu_mode_choice(self, mode_window):
     label = Label(frame_bare, text='bare: ')
     label.pack(side='left')
     combobox_bare = ttk.Combobox(frame_bare, values=range(4), width=15)
-    default_combobox = "Select an option" if self.order_var == None else self.order_var
-    combobox_bare.set(default_combobox)  # Texte par défaut
+    combobox_bare.set('-')  # Texte par défaut
     combobox_bare.pack(side='right')
+    combobox_bare.config(state="disabled")
 
     frame_vege = Frame(mode_window, width=250, height=35)
     frame_vege.pack()
@@ -70,13 +121,23 @@ def menu_mode_choice(self, mode_window):
     label = Label(frame_vege, text='vegetation: ')
     label.pack(side='left')
     combobox_vege = ttk.Combobox(frame_vege, values=list(self.new_roofs.columns), width=15)
-    default_combobox = "Select an option" if self.order_var == None else self.order_var
-    combobox_vege.set(default_combobox)  # Texte par défaut
+    combobox_vege.set('-')  # Texte par défaut
     combobox_vege.pack(side='right')
+    combobox_vege.config(state="disabled")
     
     # Add ok button
-    ok_button = ttk.Button(mode_window, text='OK', command=partial(ok_button_pressed, mode_window))
+    ok_button = ttk.Button(mode_window, text='OK', command=partial(ok_button_pressed, return_value))
     ok_button.pack(pady=20)
+    ok_button.config(state='disabled')
+
+    # bindings
+    combobox_mode.bind("<<ComboboxSelected>>", mode_chosen)
+    combobox_class.bind("<<ComboboxSelected>>", class_chosen)
+    combobox_bare.bind("<<ComboboxSelected>>", mapping_classes)
+    combobox_vege.bind("<<ComboboxSelected>>", mapping_classes)
+
+    mode_window.wait_window()
+    return return_value[0]
 
 def load(self, mode=0):
     # load polygon
@@ -91,8 +152,9 @@ def load(self, mode=0):
             
             # show mode choice window
             top_level = Toplevel(self.root)
-            menu_mode_choice(self, top_level)
-            self.root.wait_window(top_level)    # wait for the choice of the mode to be finished
+            is_mode_well_set =  menu_mode_choice(self, top_level)
+            if not is_mode_well_set: # make sure that the polygon is well set
+                return
             
             # continue to process input polygons
             if self.mode == 'labelizer':

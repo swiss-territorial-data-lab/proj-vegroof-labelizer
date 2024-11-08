@@ -10,16 +10,16 @@ import rasterio
 from rasterio.mask import mask
 from functools import partial
 from src.menu_utils import *
+from time import sleep
 
 # Global variables (to set before running the software)
 # ==============================
-INPUT_CLASS_NAME = "class"  # name of the column that contain the category in the gpkg file to process
-#IS_INPUT_BINARY = False     # if the gpkg file to process is one with binary classes (e.g. 'v' and 'b' or 1 and 0)
+"""INPUT_CLASS_NAME = "class"  # name of the column that contain the category in the gpkg file to process
 MODE = 'correcter'  # to choose in ['labelizer', 'correcter']
 INPUT_BIN_CLASS_VALUES = {  # if the gpkg file to process is one, with binary classes, the values used for each class
     "bare": 0,
     "vegetated": 1,
-}
+}"""
 
 # ==============================
 
@@ -61,9 +61,12 @@ class ImageViewer:
         self.metadata = {}
 
         # _ input variables
-        self.input_class_name = INPUT_CLASS_NAME
+        """self.input_class_name = INPUT_CLASS_NAME
         self.mode = MODE
-        self.input_bin_class_values = INPUT_BIN_CLASS_VALUES
+        self.input_bin_class_values = INPUT_BIN_CLASS_VALUES"""
+        self.input_class_name = ""
+        self.mode = ""
+        self.input_bin_class_values = {}
 
         # Set a custom font style for the app
         self.custom_font = font.Font(family="Helvetica", size=10, weight="bold")
@@ -205,6 +208,8 @@ class ImageViewer:
                         file_src = r + '/' + file
                         file_src = file_src.replace('\\','/')
                         self.list_rasters_src.append(file_src)
+        self.mode = 'correcter'
+        self.input_class_name='class'
         self.shown_cat = list(self.new_roofs[self.input_class_name].unique())
         self.update_infos()
         # -----------------------
@@ -325,6 +330,22 @@ class ImageViewer:
         self.roof_index_combobox.config(values=[str(x + 1) for x in range(self.num_roofs_to_show)])
         self.roof_index_combobox.set(str(self.roof_index + 1))
 
+        # update class buttons enabling-state
+        map_class_to_button={
+            'b': self.bare_button,
+            't': self.terrace_button,
+            's': self.spontaneous_button,
+            'e': self.extensive_button,
+            'l': self.lawn_button,
+            'i': self.intensive_button,
+        }
+        cat = self.roofs_to_show.iloc[self.roof_index]['class']
+        for key, button in map_class_to_button.items():
+            if key == cat:
+                button.config(state='disabled')
+            else:
+                button.config(state='enabled')
+
         if self.roof_index == self.num_roofs_to_show - 1:
             messagebox.showinfo("informaton", "Last sample reached !")
 
@@ -333,7 +354,27 @@ class ImageViewer:
         self.roofs_to_show.loc[self.roofs_to_show['EGID'] == self.egid, 'class'] = cat
         self.UnsavedChanges = True
         self.changes_log.append(f"Changing category of {self.egid} to '{cat}'")
-        self.show_next_image()
+
+        # update class buttons enabling-state
+        map_class_to_button={
+            'b': ['bare', self.bare_button],
+            't': ['terrace', self.terrace_button],
+            's': ['spontaneous', self.spontaneous_button],
+            'e': ['extensive', self.extensive_button],
+            'l': ['lawn', self.lawn_button],
+            'i': ['intensive', self.intensive_button],
+        }
+        for key, [label, button] in map_class_to_button.items():
+            if key == cat:
+                button.config(state='disabled')
+                self.title.config(text=str(int(self.egid)) + ' - ' + label)
+            else:
+                button.config(state='normal')
+        self.update_infos()
+        self.root.after(300, self.show_next_image)
+        
+
+        
 
     def select_sample(self, event):
         self.roof_index = int(self.roof_index_combobox.get()) - 1
