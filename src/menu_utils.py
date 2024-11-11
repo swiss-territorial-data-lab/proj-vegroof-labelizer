@@ -318,7 +318,15 @@ def open_list_cat(self):
     def ok_button_pressed(window, tree):
         checked_items = tree.get_checked()
         checked_texts = [tree.item(item, "text") for item in checked_items]
+        if self.mode == 'correcter':
+            for id_txt, text in enumerate(checked_texts):
+                for cat_key, cat_val in self.label_to_class_name.items():
+                    if cat_val[0] == text:
+                        checked_texts[id_txt] = cat_key
         self.shown_cat = checked_texts
+        self.roofs_to_show = self.new_roofs.loc[self.new_roofs[self.input_class_name].isin(self.shown_cat)].reset_index(None)
+        self.num_roofs_to_show = len(self.roofs_to_show)
+        self.roof_index = 0
         self.show_image()
         self.update_infos()
         window.destroy()
@@ -329,6 +337,7 @@ def open_list_cat(self):
         return
     
     categories = list(self.new_roofs[self.input_class_name].unique())
+    categories_texts = [self.label_to_class_name[x][0] for x in categories]
 
     # Create a Toplevel window (popup)
     checkbox_window = Toplevel(self.root)
@@ -356,7 +365,7 @@ def open_list_cat(self):
             tag =('checked')
         else:
             tag = ('unchecked')
-        tree.insert("", "end", text=cat, tags = tag)
+        tree.insert("", "end", text=categories_texts[id_cat], tags = tag)
 
     # Add a vertical scrollbar and link it to the CheckboxTreeview
     scrollbar = ttk.Scrollbar(frame_scrollable, orient="vertical", command=tree.yview)

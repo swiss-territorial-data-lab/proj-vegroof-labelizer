@@ -10,7 +10,6 @@ import rasterio
 from rasterio.mask import mask
 from functools import partial
 from src.menu_utils import *
-from time import sleep
 
 # Global variables (to set before running the software)
 # ==============================
@@ -197,7 +196,7 @@ class ImageViewer:
         root.bind('<Control-s>', lambda event: save(self))
 
         # temp-------------------
-        self.polygon_path = "D:/GitHubProjects/STDL_Classifier/data/sources/gt_MNC_filtered.gpkg"
+        """self.polygon_path = "D:/GitHubProjects/STDL_Classifier/data/sources/gt_MNC_filtered.gpkg"
         self.raster_path = "D:/GitHubProjects/STDL_Classifier/data/sources/scratch_dataset"
         self.roofs = gpd.read_file("D:/GitHubProjects/STDL_Classifier/data/sources/gt_MNC_filtered.gpkg")
         self.new_roofs = gpd.read_file("D:/GitHubProjects/STDL_Classifier/data/sources/gt_MNC_filtered.gpkg")
@@ -211,14 +210,14 @@ class ImageViewer:
         self.mode = 'correcter'
         self.input_class_name='class'
         self.shown_cat = list(self.new_roofs[self.input_class_name].unique())
-        self.update_infos()
+        self.update_infos()"""
         # -----------------------
 
         self.show_image()
    
     def show_image(self):
         if len(self.list_rasters_src) == 0 or len(self.roofs_to_show) == 0:
-            image = Image.open("./no_image.png").resize((512, 512), Image.Resampling.LANCZOS)
+            image = Image.open("./src/no_image.png").resize((512, 512), Image.Resampling.LANCZOS)
             self.photo = ImageTk.PhotoImage(image)
             self.image.config(image=self.photo)
             self.title.config(text="No sample to display")
@@ -312,7 +311,7 @@ class ImageViewer:
     
     def update_infos(self):
         # update files info
-        self.num_roofs_to_show = len(self.roofs_to_show.loc[self.roofs_to_show[self.input_class_name].isin(self.shown_cat)])
+        self.num_roofs_to_show = len(self.roofs_to_show)
         self.infos_files['Roof shown'] = f'{self.roof_index + 1} / {self.num_roofs_to_show}'
         self.infos_files['Polygons loc'] = self.polygon_path.split('/')[-1] if self.polygon_path != None else '-'
         self.infos_files['Rasters loc'] = self.raster_path.split('/')[-1] if self.raster_path != None else '-'
