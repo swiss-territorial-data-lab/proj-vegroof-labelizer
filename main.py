@@ -4,7 +4,7 @@ from tkinter import Tk, Menu, Label, Button, Frame, font, filedialog, messagebox
 from tkinter import ttk
 from PIL import Image, ImageTk
 import numpy as np
-import fiona # for .exe creation
+#import fiona # for .exe creation
 import geopandas as gpd
 import rasterio
 from rasterio.mask import mask
