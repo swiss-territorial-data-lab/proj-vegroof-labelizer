@@ -164,7 +164,7 @@ def load(self, mode=0):
         title="Select the vector source",
         filetypes=[("GeoPackage Files", "*.gpkg"), ("All Files", "*.*")]
         )
-        if self.polygon_path:
+        if self.polygon_path != "":
             self.roofs = gpd.read_file(self.polygon_path)
             self.new_roofs = gpd.read_file(self.polygon_path)
             
@@ -215,7 +215,7 @@ def load(self, mode=0):
     # load rasters
     if mode in [0,2]:
         self.raster_path = filedialog.askdirectory(title="Select the raster source")
-        if self.raster_path:
+        if self.raster_path != '':
             for r, d, f in os.walk(self.raster_path):
                 for file in f:
                     if file.endswith('.tif'):
@@ -223,7 +223,7 @@ def load(self, mode=0):
                         file_src = file_src.replace('\\','/')
                         self.list_rasters_src.append(file_src)
 
-    if self.polygon_path and self.raster_path:
+    if self.polygon_path != "" and self.raster_path != "":
         self.show_image()
     self.update_infos()
 
