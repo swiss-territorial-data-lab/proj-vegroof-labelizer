@@ -217,7 +217,7 @@ class ImageViewer:
    
     def show_image(self):
         if len(self.list_rasters_src) == 0 or len(self.roofs_to_show) == 0:
-            image = Image.open("./src/no_image.png").resize((512, 512), Image.Resampling.LANCZOS)
+            image = Image.open("D:/GitHubProjects/STDL_sample_labelizer/src/no_image.png").resize((512, 512), Image.Resampling.LANCZOS)
             self.photo = ImageTk.PhotoImage(image)
             self.image.config(image=self.photo)
             self.title.config(text="No sample to display")

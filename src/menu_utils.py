@@ -1,10 +1,12 @@
 import tkinter as tk
 import os
 import numpy as np
+import pickle
 import pandas as pd
 from tkinter import Tk, Menu, Label, Button, Frame, font, filedialog, messagebox, Checkbutton, Scrollbar, IntVar, Canvas,Toplevel
 from tkinter.scrolledtext import ScrolledText
 from tkinter import ttk
+from tkinter.ttk import Combobox
 from ttkwidgets import CheckboxTreeview
 import geopandas as gpd
 from functools import partial
@@ -12,6 +14,17 @@ from src.processing import show_confusion_matrix
 
 
 def menu_mode_choice(self, mode_window):
+    def toggle_enabled(cbb:Combobox, lbls:list, value):
+        cbb.config(state=value)
+        if cbb['state'] == 'enabled':
+            cbb.configure(foreground='black')
+            for lbl in lbls:
+                lbl.config(fg='black')
+        else:
+            cbb.configure(foreground='light grey')
+            for lbl in lbls:
+                lbl.config(fg='light grey')
+
     def ok_button_pressed(return_value):
         if combobox_mode.get() != 'Select and option' and combobox_class != 'Select an option' and combobox_bare != '-' and combobox_vege != '-':
             self.mode = combobox_mode.get()
@@ -27,12 +40,15 @@ def menu_mode_choice(self, mode_window):
     def mode_chosen(event):
         mode = combobox_mode.get()
         if mode in ['labelizer', 'correcter']:
-            combobox_class.config(state="enabled")
+            #combobox_class.config(state="enabled")
+            toggle_enabled(combobox_class, [lbl_class_name], 'enabled')
             if combobox_class.get() != 'Select an option':
                 class_chosen(event)
-            if self.mode == 'correcter':
-                combobox_bare.config(state='disabled')
-                combobox_vege.config(state='disabled')
+            if mode == 'correcter':
+                #combobox_bare.config(state='disabled')
+                #combobox_vege.config(state='disabled')
+                toggle_enabled(combobox_bare, [lbl_mapping, lbl_bare], 'disabled')
+                toggle_enabled(combobox_vege, [lbl_vege], 'disabled')
                 combobox_bare.set('-')
                 combobox_vege.set('-')
                 mapping_classes(event)
@@ -52,6 +68,8 @@ def menu_mode_choice(self, mode_window):
             # set mapping
             combobox_bare.config(state='enabled', values=class_values)
             combobox_vege.config(state='enabled', values=class_values)
+            toggle_enabled(combobox_bare, [lbl_mapping, lbl_bare], 'enabled')
+            toggle_enabled(combobox_vege, [lbl_vege], 'enabled')
         elif mode == 'correcter':
             if set(class_values) != set(['b', 't', 's', 'i', 'e', 'l']):
                 messagebox.showerror("error", "The values of the class don't match the ones for multi class!")
@@ -88,42 +106,42 @@ def menu_mode_choice(self, mode_window):
     label = Label(mode_window, text="Select mode:")
     label.pack(anchor='w', padx=10)
 
-    combobox_mode = ttk.Combobox(mode_window, values=['labelizer', 'correcter'])
+    combobox_mode = Combobox(mode_window, values=['labelizer', 'correcter'])
     combobox_mode.set("Select an option")  # Texte par défaut
     combobox_mode.pack(pady=20)
 
     # select label column
-    label = Label(mode_window, text="Select the column with the class name:")
-    label.pack(anchor='w', padx=10)
+    lbl_class_name = Label(mode_window, text="Select the column with the class name:", fg='light grey')
+    lbl_class_name.pack(anchor='w', padx=10)
 
-    combobox_class = ttk.Combobox(mode_window, values=list(self.new_roofs.columns))
+    combobox_class = Combobox(mode_window, values=list(self.new_roofs.columns))
     combobox_class.set("Select an option")  # Texte par défaut
     combobox_class.pack(pady=20)
-    combobox_class.config(state="disabled")
+    combobox_class.config(state="disabled", foreground='light grey')
 
     # map label to class
-    label = Label(mode_window, text='Values mapping (only in "labelizer" mode):')
-    label.pack(anchor='w', padx=10)
+    lbl_mapping = Label(mode_window, text='Values mapping (only in "labelizer" mode):', fg='light grey')
+    lbl_mapping.pack(anchor='w', padx=10)
 
     frame_bare = Frame(mode_window, width=250, height=35)
     frame_bare.pack()
     frame_bare.pack_propagate(False) 
-    label = Label(frame_bare, text='bare: ')
-    label.pack(side='left')
-    combobox_bare = ttk.Combobox(frame_bare, values=range(4), width=15)
+    lbl_bare = Label(frame_bare, text='bare: ', fg='light grey')
+    lbl_bare.pack(side='left')
+    combobox_bare = Combobox(frame_bare, values=range(4), width=15)
     combobox_bare.set('-')  # Texte par défaut
     combobox_bare.pack(side='right')
-    combobox_bare.config(state="disabled")
+    combobox_bare.config(state="disabled", foreground='light grey')
 
     frame_vege = Frame(mode_window, width=250, height=35)
     frame_vege.pack()
     frame_vege.pack_propagate(False) 
-    label = Label(frame_vege, text='vegetation: ')
-    label.pack(side='left')
-    combobox_vege = ttk.Combobox(frame_vege, values=list(self.new_roofs.columns), width=15)
+    lbl_vege = Label(frame_vege, text='vegetation: ', fg='light grey')
+    lbl_vege.pack(side='left')
+    combobox_vege = Combobox(frame_vege, values=list(self.new_roofs.columns), width=15)
     combobox_vege.set('-')  # Texte par défaut
     combobox_vege.pack(side='right')
-    combobox_vege.config(state="disabled")
+    combobox_vege.config(state="disabled", foreground='light grey')
     
     # Add ok button
     ok_button = ttk.Button(mode_window, text='OK', command=partial(ok_button_pressed, return_value))
@@ -170,11 +188,34 @@ def load(self, mode=0):
             self.roofs_to_show = self.new_roofs.copy()
             self.shown_cat = list(self.new_roofs[self.input_class_name].unique())
 
+            # verify if a save already exists
+            new_polygon_path = self.polygon_path.split('.')[:-1]
+            new_polygon_path.append("_corrected")
+            new_polygon_path = ''.join(new_polygon_path)
+            if os.path.exists(new_polygon_path):
+                if messagebox.askyesno("Save found", "A save already exists for this file. Do you want to continue from it?"):
+                    try:
+                        with open(os.path.join(new_polygon_path, 'save_file.pkl'), 'rb') as in_file:
+                            dict_save = pickle.load(in_file)
+                        self.polygon_path = dict_save['polygon_path']
+                        self.raster_path = dict_save['raster_path']
+                        self.roofs = dict_save['roofs']
+                        self.new_roofs = dict_save['new_roofs']
+                        self.roofs_to_show = dict_save['roofs_to_show']
+                        self.roof_index = dict_save['roof_index']
+                        self.egid = dict_save['egid']
+                        self.shown_cat = dict_save['shown_cat']
+                        self.shown_meta = dict_save['shown_meta']
+                        self.list_rasters_src = dict_save['list_rasters_src']
+                        self.update_infos()
+                    except Exception as e:
+                        print("An error occured. The save file \"save_file.pkl\" must be absent or corrupted.")
+                        print(f"Original error: {e}")
+
     # load rasters
     if mode in [0,2]:
         self.raster_path = filedialog.askdirectory(title="Select the raster source")
         if self.raster_path:
-            print(f"Selected folder: {self.raster_path}")
             for r, d, f in os.walk(self.raster_path):
                 for file in f:
                     if file.endswith('.tif'):
@@ -197,7 +238,6 @@ def save(self):
         new_polygon_path = self.polygon_path.split('.')[:-1]
         new_polygon_path.append("_corrected")
         new_polygon_path = ''.join(new_polygon_path)
-        print(new_polygon_path)
         if not os.path.exists(new_polygon_path):
             os.mkdir(new_polygon_path)
 
@@ -221,6 +261,23 @@ def save(self):
         with open(os.path.join(new_polygon_path, 'modification_logs.txt'), 'w') as file:
             for egid in self.changes_log:
                 file.write(f"{egid}\n")
+
+        # save GeoDataFrames
+        dict_save = {
+            'polygon_path': self.polygon_path,
+            'raster_path': self.raster_path,
+            'roofs': self.roofs,
+            'new_roofs': self.new_roofs,
+            'roofs_to_show': self.roofs_to_show,
+            'roof_index': self.roof_index,
+            'egid': self.egid,
+            'shown_cat': self.shown_cat,
+            'shown_meta': self.shown_meta,
+            'list_rasters_src': self.list_rasters_src,
+        }
+        with open(os.path.join(new_polygon_path, 'save_file.pkl'),'wb') as out_file:
+            pickle.dump(dict_save, out_file)
+
     except AttributeError:
         _ = messagebox.showerror("Error", "A problem happened! Either the path to the polygon has not been set or is non-existant.")
     else:
@@ -229,8 +286,9 @@ def save(self):
 
         # compute visualization of data analysis
         if self.mode == 'correcter':
-            pred = [self.label_to_class_name[x][1] for x in list(self.new_roofs['class'].values)]
-            true = [self.label_to_class_name[x][1] for x in list(self.roofs['class'].values)]
+            pred_roofs = self.roofs.loc[self.roofs.EGID.isin(list(self.new_roofs.EGID.values))]
+            true = [self.label_to_class_name[x][1] for x in list(self.new_roofs['class'].values)]
+            pred = [self.label_to_class_name[x][1] for x in list(pred_roofs['class'].values)]
             show_confusion_matrix(
                 y_pred=pred,
                 y_true=true,
