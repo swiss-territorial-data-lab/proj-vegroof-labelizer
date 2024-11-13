@@ -26,8 +26,8 @@ class ImageViewer:
     def __init__(self, root):
         self.UnsavedChanges = False
         self.root = root
-        self.polygon_path = None
-        self.raster_path = None
+        self.polygon_path = ""
+        self.raster_path = ""
         self.roof_index = 0
         self.num_roofs_to_show = 0
         self.roofs = gpd.GeoDataFrame()
@@ -196,19 +196,19 @@ class ImageViewer:
         root.bind('<Control-s>', lambda event: save(self))
 
         # temp-------------------
-        """self.polygon_path = "D:/GitHubProjects/STDL_Classifier/data/sources/gt_MNC_filtered.gpkg"
-        self.raster_path = "D:/GitHubProjects/STDL_Classifier/data/sources/scratch_dataset"
-        self.roofs = gpd.read_file("D:/GitHubProjects/STDL_Classifier/data/sources/gt_MNC_filtered.gpkg")
-        self.new_roofs = gpd.read_file("D:/GitHubProjects/STDL_Classifier/data/sources/gt_MNC_filtered.gpkg")
-        self.roofs_to_show = gpd.read_file("D:/GitHubProjects/STDL_Classifier/data/sources/gt_MNC_filtered.gpkg")
-        for r, d, f in os.walk("D:/GitHubProjects/STDL_Classifier/data/sources/scratch_dataset"):
+        """self.polygon_path = "D:/GitHubProjects/STDL_sample_labelizer/data/sources/inf_binary_LR_RF.gpkg"
+        self.raster_path = "D:/GitHubProjects/STDL_sample_labelizer/data/sources/inference"
+        self.roofs = gpd.read_file(self.polygon_path)
+        self.new_roofs = gpd.read_file(self.polygon_path)
+        self.roofs_to_show = gpd.read_file(self.polygon_path)
+        for r, d, f in os.walk(self.raster_path):
                 for file in f:
                     if file.endswith('.tif'):
                         file_src = r + '/' + file
                         file_src = file_src.replace('\\','/')
                         self.list_rasters_src.append(file_src)
-        self.mode = 'correcter'
-        self.input_class_name='class'
+        self.mode = 'labelizer'
+        self.input_class_name='pred'
         self.shown_cat = list(self.new_roofs[self.input_class_name].unique())
         self.update_infos()"""
         # -----------------------
@@ -217,7 +217,7 @@ class ImageViewer:
    
     def show_image(self):
         if len(self.list_rasters_src) == 0 or len(self.roofs_to_show) == 0:
-            image = Image.open("D:/GitHubProjects/STDL_sample_labelizer/src/no_image.png").resize((512, 512), Image.Resampling.LANCZOS)
+            image = Image.open("./src/no_image.png").resize((512, 512), Image.Resampling.LANCZOS)
             self.photo = ImageTk.PhotoImage(image)
             self.image.config(image=self.photo)
             self.title.config(text="No sample to display")
@@ -291,7 +291,7 @@ class ImageViewer:
         if self.mode == 'correcter':
             self.title.config(text=str(int(self.egid)) + ' - ' + self.label_to_class_name[cat][0])
         else:
-            self.title.config(text=str(int(self.egid)) + ' - ' + cat)
+            self.title.config(text=str(int(self.egid)) + ' - ' + str(cat))
         self.image.config(image=self.photo)
 
     def show_next_image(self):
@@ -318,6 +318,10 @@ class ImageViewer:
         new_text = '\n'.join([item[0] + ': ' + str(item[1]) for item in self.infos_files.items()])
         self.label_infos_files.config(text=new_text)
 
+        # security
+        if self.raster_path == "" or self.polygon_path == "" or len(self.roofs_to_show) == 0:
+            return
+
         # update metadata
         self.metadata = {}
         for meta in self.shown_meta:
@@ -338,7 +342,7 @@ class ImageViewer:
             'l': self.lawn_button,
             'i': self.intensive_button,
         }
-        cat = self.roofs_to_show.iloc[self.roof_index]['class']
+        cat = self.roofs_to_show.iloc[self.roof_index][self.input_class_name]
         for key, button in map_class_to_button.items():
             if key == cat:
                 button.config(state='disabled')

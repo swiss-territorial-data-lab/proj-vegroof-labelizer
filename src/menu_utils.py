@@ -26,27 +26,30 @@ def menu_mode_choice(self, mode_window):
                 lbl.config(fg='light grey')
 
     def ok_button_pressed(return_value):
-        if combobox_mode.get() != 'Select and option' and combobox_class != 'Select an option' and combobox_bare != '-' and combobox_vege != '-':
+        if combobox_mode.get() != 'Select and option' and combobox_class != 'Select an option':
             self.mode = combobox_mode.get()
             self.input_class_name = combobox_class.get()
-            self.input_bin_class_values['bare'] = combobox_bare.get()
-            self.input_bin_class_values['vegetated'] = combobox_vege.get()
+            self.new_roofs[self.input_class_name] = self.new_roofs[self.input_class_name].astype('string')
+            if combobox_bare != '-' and combobox_vege != '-':
+                self.input_bin_class_values['bare'] = combobox_bare.get()
+                self.input_bin_class_values['vegetated'] = combobox_vege.get()
+                self.label_to_class_name = {
+                    'bare' : ['bare', self.input_bin_class_values['bare']],
+                    'vegetated' : ['vegetated', self.input_bin_class_values['vegetated']],
+                }
 
             if self.mode == 'labelizer':
-                self.new_roofs = self.new_roofs.loc[self.new_roofs[self.input_class_name].isin(self.input_bin_class_values.values())]
+                self.new_roofs = self.new_roofs.loc[self.new_roofs[self.input_class_name].isin(list(self.input_bin_class_values.values()))]
             return_value[0] = True
             mode_window.destroy()
     
     def mode_chosen(event):
         mode = combobox_mode.get()
         if mode in ['labelizer', 'correcter']:
-            #combobox_class.config(state="enabled")
             toggle_enabled(combobox_class, [lbl_class_name], 'enabled')
             if combobox_class.get() != 'Select an option':
                 class_chosen(event)
             if mode == 'correcter':
-                #combobox_bare.config(state='disabled')
-                #combobox_vege.config(state='disabled')
                 toggle_enabled(combobox_bare, [lbl_mapping, lbl_bare], 'disabled')
                 toggle_enabled(combobox_vege, [lbl_vege], 'disabled')
                 combobox_bare.set('-')
@@ -178,9 +181,9 @@ def load(self, mode=0):
             if self.mode == 'labelizer':
                 self.new_roofs.rename(columns={self.input_class_name:'class_binary'}, inplace=True)
                 self.input_class_name = 'class_binary'
+                self.new_roofs.class_binary = self.new_roofs.class_binary.astype('string')
                 for cat, val in self.input_bin_class_values.items():
-                    self.new_roofs.class_binary = self.new_roofs.class_binary.astype('string')
-                    self.new_roofs.loc[self.new_roofs.class_binary.astype('string') == str(val), 'class_binary'] = cat
+                    self.new_roofs.loc[self.new_roofs.class_binary == str(val), 'class_binary'] = str(cat)
 
                 self.new_roofs['class'] = np.nan
             """else: # if mode = 'correcter'
@@ -207,10 +210,12 @@ def load(self, mode=0):
                         self.shown_cat = dict_save['shown_cat']
                         self.shown_meta = dict_save['shown_meta']
                         self.list_rasters_src = dict_save['list_rasters_src']
+                        self.show_image()
                         self.update_infos()
                     except Exception as e:
                         print("An error occured. The save file \"save_file.pkl\" must be absent or corrupted.")
                         print(f"Original error: {e}")
+                    return
 
     # load rasters
     if mode in [0,2]:
