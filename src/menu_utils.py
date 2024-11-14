@@ -30,16 +30,24 @@ def menu_mode_choice(self, mode_window):
             self.mode = combobox_mode.get()
             self.input_class_name = combobox_class.get()
             self.new_roofs[self.input_class_name] = self.new_roofs[self.input_class_name].astype('string')
-            if combobox_bare != '-' and combobox_vege != '-':
+            if combobox_bare.get() != '-' and combobox_vege.get() != '-' and self.mode == 'labelizer':
                 self.input_bin_class_values['bare'] = combobox_bare.get()
                 self.input_bin_class_values['vegetated'] = combobox_vege.get()
                 self.label_to_class_name = {
                     'bare' : ['bare', self.input_bin_class_values['bare']],
                     'vegetated' : ['vegetated', self.input_bin_class_values['vegetated']],
                 }
-
-            if self.mode == 'labelizer':
                 self.new_roofs = self.new_roofs.loc[self.new_roofs[self.input_class_name].isin(list(self.input_bin_class_values.values()))]
+            elif self.mode == 'correcter':
+                self.label_to_class_name = {
+                    'b': ['bare', 0],
+                    't': ['terrace', 1],
+                    's': ['spontaneous', 2],
+                    'e': ['extensive', 3],
+                    'l': ['lawn', 4],
+                    'i': ['intensive', 5],
+                }
+
             return_value[0] = True
             mode_window.destroy()
     
@@ -185,7 +193,7 @@ def load(self, mode=0):
                 for cat, val in self.input_bin_class_values.items():
                     self.new_roofs.loc[self.new_roofs.class_binary == str(val), 'class_binary'] = str(cat)
 
-                self.new_roofs['class'] = np.nan
+                self.new_roofs['class'] = ""
             """else: # if mode = 'correcter'
                 self.new_roofs = """
             self.roofs_to_show = self.new_roofs.copy()
@@ -247,19 +255,22 @@ def save(self):
             os.mkdir(new_polygon_path)
 
         # create geopackage file
-        new_polygon_name = self.polygon_path.split('.')[:-1]
-        new_polygon_name = self.polygon_path.split('/')[-1]
-        new_polygon_name += "_corrected.gpkg"
+        #new_name = new_polygon_path.split('.')[:-1]
+        new_name = new_polygon_path.split('/')[-1]
+        new_polygon_name = new_name + ".gpkg"
         new_polygon_name = ''.join(new_polygon_name)
+        new_csv_name = new_name + ".csv"
+        new_csv_name = ''.join(new_csv_name)
         new_polygon_src = os.path.join(new_polygon_path, new_polygon_name)
+        new_csv_src = os.path.join(new_polygon_path, new_csv_name)
 
         # save roofs to geopackage and csv
         if self.mode == 'labelizer':
             self.new_roofs.dropna(subset=['class']).to_file(new_polygon_src)
-            self.new_roofs.dropna(subset=['class']).drop('geometry', axis=1).to_csv(new_polygon_src+".csv", sep=';', index=None)
+            self.new_roofs.dropna(subset=['class']).drop('geometry', axis=1).to_csv(new_csv_src, sep=';', index=None)
         else: # if self.mode  = 'correcter
             self.new_roofs.to_file(new_polygon_src)
-            self.new_roofs.drop('geometry', axis=1).to_csv(new_polygon_src+".csv", sep=';', index=None)
+            self.new_roofs.drop('geometry', axis=1).to_csv(new_csv_src, sep=';', index=None)
 
 
         # save list of changes
@@ -301,7 +312,7 @@ def save(self):
                 class_labels=[x[0] for x in self.label_to_class_name],
                 title="Performances",
                 do_save=True,
-                do_show=True,
+                do_show=False,
             )
 
 
