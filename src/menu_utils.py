@@ -169,36 +169,27 @@ def menu_mode_choice(self, mode_window):
     return return_value[0]
 
 def load(self, mode=0):
+    # test if ongoing unsaved project
+    if self.UnsavedChanges == True:
+        result = messagebox.askyesnocancel("Confirmation", "There is unsaved changes! Do you want to save?")
+        if result == True:
+            save(self)
+        elif result == False:
+            pass
+        else:
+            return
+        
     # load polygon
     if mode in [0,1]:
         self.polygon_path = filedialog.askopenfilename(
         title="Select the vector source",
         filetypes=[("GeoPackage Files", "*.gpkg"), ("All Files", "*.*")]
         )
+
         if self.polygon_path != "":
             self.roofs = gpd.read_file(self.polygon_path)
             self.new_roofs = gpd.read_file(self.polygon_path)
             
-            # show mode choice window
-            top_level = Toplevel(self.root)
-            is_mode_well_set =  menu_mode_choice(self, top_level)
-            if not is_mode_well_set: # make sure that the polygon is well set
-                return
-            
-            # continue to process input polygons
-            if self.mode == 'labelizer':
-                self.new_roofs.rename(columns={self.input_class_name:'class_binary'}, inplace=True)
-                self.input_class_name = 'class_binary'
-                self.new_roofs.class_binary = self.new_roofs.class_binary.astype('string')
-                for cat, val in self.input_bin_class_values.items():
-                    self.new_roofs.loc[self.new_roofs.class_binary == str(val), 'class_binary'] = str(cat)
-
-                self.new_roofs['class'] = ""
-            """else: # if mode = 'correcter'
-                self.new_roofs = """
-            self.roofs_to_show = self.new_roofs.copy()
-            self.shown_cat = list(self.new_roofs[self.input_class_name].unique())
-
             # verify if a save already exists
             new_polygon_path = self.polygon_path.split('.')[:-1]
             new_polygon_path.append("_corrected")
@@ -218,12 +209,40 @@ def load(self, mode=0):
                         self.shown_cat = dict_save['shown_cat']
                         self.shown_meta = dict_save['shown_meta']
                         self.list_rasters_src = dict_save['list_rasters_src']
+                        self.mode = dict_save['mode']
+                        self.input_class_name = dict_save['input_class_name']
+                        self.input_bin_class_values = dict_save['input_bin_class_values']
+                        self.label_to_class_name = dict_save['label_to_class_name']
                         self.show_image()
                         self.update_infos()
                     except Exception as e:
                         print("An error occured. The save file \"save_file.pkl\" must be absent or corrupted.")
                         print(f"Original error: {e}")
                     return
+                
+            # show mode choice window
+            top_level = Toplevel(self.root)
+            is_mode_well_set =  menu_mode_choice(self, top_level)
+            if not is_mode_well_set: # make sure that the polygon is well set
+                return
+            
+            # continue to process input polygons
+            if self.mode == 'labelizer':
+                self.new_roofs.rename(columns={self.input_class_name:'class_binary'}, inplace=True)
+                self.input_class_name = 'class_binary'
+                self.new_roofs.class_binary = self.new_roofs.class_binary.astype('string')
+                for cat, val in self.input_bin_class_values.items():
+                    self.new_roofs.loc[self.new_roofs.class_binary == str(val), 'class_binary'] = str(cat)
+
+                self.new_roofs['class'] = ""
+
+            self.roofs_to_show = self.new_roofs.copy()
+            self.shown_cat = list(self.new_roofs[self.input_class_name].unique())
+
+            # verify if a save already exists
+            new_polygon_path = self.polygon_path.split('.')[:-1]
+            new_polygon_path.append("_corrected")
+            new_polygon_path = ''.join(new_polygon_path)
 
     # load rasters
     if mode in [0,2]:
@@ -237,8 +256,41 @@ def load(self, mode=0):
                         self.list_rasters_src.append(file_src)
 
     if self.polygon_path != "" and self.raster_path != "":
+        self.roof_index = 0
         self.show_image()
+
+    if mode == 3:
+        save_path = filedialog.askopenfilename(
+        title="Select the save file",
+        filetypes=[("Pickle Files", "*.pkl *.pickle"), ("All Files", "*.*")]
+        )
+
+        if save_path != "":
+            try:
+                with open(os.path.join(save_path), 'rb') as in_file:
+                    dict_save = pickle.load(in_file)
+                self.polygon_path = dict_save['polygon_path']
+                self.raster_path = dict_save['raster_path']
+                self.roofs = dict_save['roofs']
+                self.new_roofs = dict_save['new_roofs']
+                self.roofs_to_show = dict_save['roofs_to_show']
+                self.roof_index = dict_save['roof_index']
+                self.egid = dict_save['egid']
+                self.shown_cat = dict_save['shown_cat']
+                self.shown_meta = dict_save['shown_meta']
+                self.list_rasters_src = dict_save['list_rasters_src']
+                self.mode = dict_save['mode']
+                self.input_class_name = dict_save['input_class_name']
+                self.input_bin_class_values = dict_save['input_bin_class_values']
+                self.label_to_class_name = dict_save['label_to_class_name']
+                self.show_image()
+                self.update_infos()
+            except Exception as e:
+                print("An error occured. The save file \"save_file.pkl\" must be absent or corrupted.")
+                print(f"Original error: {e}")
+            return
     self.update_infos()
+
 
 def save(self):
     if self.UnsavedChanges == 0:
@@ -266,8 +318,8 @@ def save(self):
 
         # save roofs to geopackage and csv
         if self.mode == 'labelizer':
-            self.new_roofs.dropna(subset=['class']).to_file(new_polygon_src)
-            self.new_roofs.dropna(subset=['class']).drop('geometry', axis=1).to_csv(new_csv_src, sep=';', index=None)
+            self.new_roofs.loc[self.new_roofs['class'] != ""].drop('geometry', axis=1).to_csv(new_csv_src, sep=';', index=None)
+            self.new_roofs.loc[self.new_roofs['class'] != ""].to_file(new_polygon_src)
         else: # if self.mode  = 'correcter
             self.new_roofs.to_file(new_polygon_src)
             self.new_roofs.drop('geometry', axis=1).to_csv(new_csv_src, sep=';', index=None)
@@ -290,6 +342,10 @@ def save(self):
             'shown_cat': self.shown_cat,
             'shown_meta': self.shown_meta,
             'list_rasters_src': self.list_rasters_src,
+            'mode': self.mode,
+            'input_class_name': self.input_class_name,
+            'input_bin_class_values': self.input_bin_class_values,
+            'label_to_class_name': self.label_to_class_name,
         }
         with open(os.path.join(new_polygon_path, 'save_file.pkl'),'wb') as out_file:
             pickle.dump(dict_save, out_file)
@@ -324,7 +380,6 @@ def exit(self):
         elif result == False:
             pass
         else:
-            print("User clicked Cancel")
             return
     self.root.quit()
 

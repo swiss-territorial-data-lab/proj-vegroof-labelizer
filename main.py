@@ -60,9 +60,6 @@ class ImageViewer:
         self.metadata = {}
 
         # _ input variables
-        """self.input_class_name = INPUT_CLASS_NAME
-        self.mode = MODE
-        self.input_bin_class_values = INPUT_BIN_CLASS_VALUES"""
         self.input_class_name = ""
         self.mode = ""
         self.input_bin_class_values = {}
@@ -85,6 +82,7 @@ class ImageViewer:
         load_menu.add_command(label='Polygons', command=partial(load, self, 1))
         load_menu.add_command(label='Rasters', command=partial(load, self, 2))
         load_menu.add_command(label='Polygons & Rasters', command=partial(load, self, 0))
+        load_menu.add_command(label='From save', command=partial(load, self, 3))
         menu_bar.add_cascade(label='Load', menu=load_menu)
 
         # _ add selection of categories and metadata to show
@@ -217,7 +215,7 @@ class ImageViewer:
    
     def show_image(self):
         if len(self.list_rasters_src) == 0 or len(self.roofs_to_show) == 0:
-            image = Image.open("./src/no_image.png").resize((512, 512), Image.Resampling.LANCZOS)
+            image = Image.open("./src/no_image.png").resize((512, 512))
             self.photo = ImageTk.PhotoImage(image)
             self.image.config(image=self.photo)
             self.title.config(text="No sample to display")
@@ -245,7 +243,7 @@ class ImageViewer:
 
         # test if polygon match with one or multiple rasters:    
         if len(matching_rasters) == 0:
-            image = Image.open("./src/no_image.png").resize((512, 512), Image.Resampling.LANCZOS)
+            image = Image.open("./src/no_image.png").resize((512, 512))
             self.photo = ImageTk.PhotoImage(image)
             self.image.config(image=self.photo)
         elif len(matching_rasters) == 1:
@@ -270,7 +268,7 @@ class ImageViewer:
         max_size = np.max(img_arr.shape[:2])
         ratio = 512 / max_size
         new_size = np.flip((np.array(img_arr.shape[0:2]) * ratio).astype(int))
-        image_resized = np.array(image.resize(new_size, Image.Resampling.LANCZOS))  # Resize for display
+        image_resized = np.array(image.resize(new_size))  # Resize for display
 
         # _add padding
         min_axis = np.argmin(image_resized.shape[:2])
@@ -308,7 +306,6 @@ class ImageViewer:
         self.show_image()
         self.update_infos()
     
-    
     def update_infos(self):
         # update files info
         self.num_roofs_to_show = len(self.roofs_to_show)
@@ -342,7 +339,11 @@ class ImageViewer:
             'l': self.lawn_button,
             'i': self.intensive_button,
         }
-        cat = self.roofs_to_show.iloc[self.roof_index][self.input_class_name]
+        cat = ""
+        if self.mode == 'correcter':
+            cat = self.roofs_to_show.iloc[self.roof_index][self.input_class_name]
+        elif self.mode == 'labelizer':
+            cat = self.roofs_to_show.iloc[self.roof_index]['class']
         for key, button in map_class_to_button.items():
             if key == cat:
                 button.config(state='disabled')
@@ -374,11 +375,8 @@ class ImageViewer:
             else:
                 button.config(state='normal')
         self.update_infos()
-        self.root.after(300, self.show_next_image)
+        #self.root.after(300, self.show_next_image)
         
-
-        
-
     def select_sample(self, event):
         self.roof_index = int(self.roof_index_combobox.get()) - 1
         self.show_image()
