@@ -1,0 +1,9 @@
+numpy
+matplotlib
+seaborn
+pandas
+geopandas
+pillow
+tkinter
+rasterio
+ttkwidgets

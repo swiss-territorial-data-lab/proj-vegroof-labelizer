@@ -236,6 +236,8 @@ class ImageViewer:
             image = Image.open("./src/no_image.png").resize((512, 512))
             self.photo = ImageTk.PhotoImage(image)
             self.image.config(image=self.photo)
+            self.title.config(text=str(int(self.egid)) + ' - ' + self.label_to_class_name[cat])
+            return
         elif len(matching_rasters) == 1:
             img_arr = matching_images[0]
         else:
@@ -276,10 +278,7 @@ class ImageViewer:
         # _show image and title
         image_final = Image.fromarray(np.uint8(padded_image))
         self.photo = ImageTk.PhotoImage(image_final)
-        if self.mode == 'correcter':
-            self.title.config(text=str(int(self.egid)) + ' - ' + self.label_to_class_name[cat])
-        else:
-            self.title.config(text=str(int(self.egid)) + ' - ' + str(cat))
+        self.title.config(text=str(int(self.egid)) + ' - ' + self.label_to_class_name[cat])
         self.image.config(image=self.photo)
 
     def show_next_image(self):

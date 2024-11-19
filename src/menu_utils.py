@@ -41,7 +41,7 @@ def menu_mode_choice(self, mode_window):
                     self.input_bin_class_values['bare'] : 'bare',
                     self.input_bin_class_values['vegetated'] : 'vegetated',
                 }
-                self.new_roofs = self.new_roofs.loc[self.new_roofs[self.input_class_name].isin(list(self.input_bin_class_values.values()))]
+                #self.new_roofs = self.new_roofs.loc[self.new_roofs[self.input_class_name].isin(list(self.input_bin_class_values.values()))]
             elif self.mode == 'correcter':
                 self.label_to_class_name = {
                     'b': 'bare',
@@ -51,8 +51,12 @@ def menu_mode_choice(self, mode_window):
                     'l': 'lawn',
                     'i': 'intensive',
                 }
+                self.label_to_class_name = {x:y for x,y in self.label_to_class_name.items() if x in self.new_roofs[self.input_class_name].unique()}
             else:
+                mode_window.destroy()
                 return
+            
+            self.new_roofs = self.new_roofs.loc[self.new_roofs[self.input_class_name].isin(list(self.label_to_class_name.keys()))]
             
             self.shown_cat = list(self.label_to_class_name.values())
             return_value[0] = True
@@ -89,12 +93,18 @@ def menu_mode_choice(self, mode_window):
             toggle_enabled(combobox_bare, [lbl_mapping, lbl_bare], 'enabled')
             toggle_enabled(combobox_vege, [lbl_vege], 'enabled')
         elif mode == 'correcter':
-            if set(class_values) != set(['b', 't', 's', 'i', 'e', 'l']):
+            if set(class_values).intersection(set(self.label_to_class_name.keys())) == set([]):
                 messagebox.showerror("error", "The values of the class don't match the ones for multi class!")
                 mode_window.focus_set()
                 return
-            else:
-                ok_button.config(state='enabled')
+            elif set(class_values).intersection(set(self.label_to_class_name.keys())) != set(class_values):
+                messagebox.showwarning("error", "Some of the values of the class don't match the ones for multi class! Cooresponding samples will not be kept")
+                mode_window.focus_set()
+            ok_button.config(state='enabled')
+            """if set(class_values) != set(['b', 't', 's', 'i', 'e', 'l']):
+                messagebox.showerror("error", "The values of the class don't match the ones for multi class!")
+                mode_window.focus_set()
+                return"""
         else:
             print('no class name selected!')
 
@@ -112,6 +122,7 @@ def menu_mode_choice(self, mode_window):
     # Retrieve categories from roofs
     if len(self.new_roofs) == 0 or self.polygon_path == None:
         messagebox.showwarning("Information", "No polygon file loaded!")
+        mode_window.destroy()
         return
 
     # Create a Toplevel window (popup)
@@ -248,6 +259,7 @@ def load(self, mode=0):
     if mode in [0,2]:
         self.raster_path = filedialog.askdirectory(title="Select the raster source")
         if self.raster_path != '':
+            self.list_rasters_src = []
             for r, d, f in os.walk(self.raster_path):
                 for file in f:
                     if file.endswith('.tif'):
@@ -399,7 +411,6 @@ def order(self):
             axis=0, 
             ascending= self.order_asc, 
             ignore_index=True)
-        self.UnsavedChanges = True
         self.show_image()
         self.update_infos()
         window.destroy()
