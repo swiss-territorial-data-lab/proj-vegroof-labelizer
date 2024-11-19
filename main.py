@@ -11,16 +11,6 @@ from rasterio.mask import mask
 from functools import partial
 from src.menu_utils import *
 
-# Global variables (to set before running the software)
-# ==============================
-"""INPUT_CLASS_NAME = "class"  # name of the column that contain the category in the gpkg file to process
-MODE = 'correcter'  # to choose in ['labelizer', 'correcter']
-INPUT_BIN_CLASS_VALUES = {  # if the gpkg file to process is one, with binary classes, the values used for each class
-    "bare": 0,
-    "vegetated": 1,
-}"""
-
-# ==============================
 
 class ImageViewer:
     def __init__(self, root):
@@ -49,12 +39,12 @@ class ImageViewer:
         self.order_asc = True
 
         self.label_to_class_name = {
-            'b': ['bare', 0],
-            't': ['terrace', 1],
-            's': ['spontaneous', 2],
-            'e': ['extensive', 3],
-            'l': ['lawn', 4],
-            'i': ['intensive', 5],
+            'b': 'bare',
+            't': 'terrace',
+            's': 'spontaneous',
+            'e': 'extensive',
+            'l': 'lawn',
+            'i': 'intensive',
         }
 
         self.metadata = {}
@@ -222,7 +212,7 @@ class ImageViewer:
             return
 
         # get image from polygon and rasters
-        while self.roofs_to_show.iloc[self.roof_index][self.input_class_name] not in self.shown_cat:
+        while self.label_to_class_name[self.roofs_to_show.iloc[self.roof_index][self.input_class_name]] not in self.shown_cat:
             self.roof_index += 1
         roof = self.roofs_to_show.iloc[self.roof_index]
         self.egid = roof.EGID
@@ -287,21 +277,21 @@ class ImageViewer:
         image_final = Image.fromarray(np.uint8(padded_image))
         self.photo = ImageTk.PhotoImage(image_final)
         if self.mode == 'correcter':
-            self.title.config(text=str(int(self.egid)) + ' - ' + self.label_to_class_name[cat][0])
+            self.title.config(text=str(int(self.egid)) + ' - ' + self.label_to_class_name[cat])
         else:
             self.title.config(text=str(int(self.egid)) + ' - ' + str(cat))
         self.image.config(image=self.photo)
 
     def show_next_image(self):
         self.roof_index = (self.roof_index + 1) % len(self.roofs_to_show)  # Loop around
-        while self.roofs_to_show.iloc[self.roof_index][self.input_class_name] not in self.shown_cat:
+        while self.label_to_class_name[self.roofs_to_show.iloc[self.roof_index][self.input_class_name]] not in self.shown_cat:
             self.roof_index = (self.roof_index + 1) % len(self.roofs_to_show)  # Loop around
         self.show_image()
         self.update_infos()
 
     def show_previous_image(self):
         self.roof_index = (self.roof_index - 1) % len(self.roofs_to_show)  # Loop around
-        while self.roofs_to_show.iloc[self.roof_index][self.input_class_name] not in self.shown_cat:
+        while self.label_to_class_name[self.roofs_to_show.iloc[self.roof_index][self.input_class_name]] not in self.shown_cat:
             self.roof_index = (self.roof_index - 1) % len(self.roofs_to_show)  # Loop around
         self.show_image()
         self.update_infos()

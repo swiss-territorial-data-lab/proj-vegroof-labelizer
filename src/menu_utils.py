@@ -33,21 +33,28 @@ def menu_mode_choice(self, mode_window):
             if combobox_bare.get() != '-' and combobox_vege.get() != '-' and self.mode == 'labelizer':
                 self.input_bin_class_values['bare'] = combobox_bare.get()
                 self.input_bin_class_values['vegetated'] = combobox_vege.get()
-                self.label_to_class_name = {
+                """self.label_to_class_name = {
                     'bare' : ['bare', self.input_bin_class_values['bare']],
                     'vegetated' : ['vegetated', self.input_bin_class_values['vegetated']],
+                }"""
+                self.label_to_class_name = {
+                    self.input_bin_class_values['bare'] : 'bare',
+                    self.input_bin_class_values['vegetated'] : 'vegetated',
                 }
                 self.new_roofs = self.new_roofs.loc[self.new_roofs[self.input_class_name].isin(list(self.input_bin_class_values.values()))]
             elif self.mode == 'correcter':
                 self.label_to_class_name = {
-                    'b': ['bare', 0],
-                    't': ['terrace', 1],
-                    's': ['spontaneous', 2],
-                    'e': ['extensive', 3],
-                    'l': ['lawn', 4],
-                    'i': ['intensive', 5],
+                    'b': 'bare',
+                    't': 'terrace',
+                    's': 'spontaneous',
+                    'e': 'extensive',
+                    'l': 'lawn',
+                    'i': 'intensive',
                 }
-
+            else:
+                return
+            
+            self.shown_cat = list(self.label_to_class_name.values())
             return_value[0] = True
             mode_window.destroy()
     
@@ -168,6 +175,7 @@ def menu_mode_choice(self, mode_window):
     mode_window.wait_window()
     return return_value[0]
 
+
 def load(self, mode=0):
     # test if ongoing unsaved project
     if self.UnsavedChanges == True:
@@ -233,16 +241,8 @@ def load(self, mode=0):
                 self.new_roofs.class_binary = self.new_roofs.class_binary.astype('string')
                 for cat, val in self.input_bin_class_values.items():
                     self.new_roofs.loc[self.new_roofs.class_binary == str(val), 'class_binary'] = str(cat)
-
                 self.new_roofs['class'] = ""
-
             self.roofs_to_show = self.new_roofs.copy()
-            self.shown_cat = list(self.new_roofs[self.input_class_name].unique())
-
-            # verify if a save already exists
-            new_polygon_path = self.polygon_path.split('.')[:-1]
-            new_polygon_path.append("_corrected")
-            new_polygon_path = ''.join(new_polygon_path)
 
     # load rasters
     if mode in [0,2]:
@@ -307,7 +307,6 @@ def save(self):
             os.mkdir(new_polygon_path)
 
         # create geopackage file
-        #new_name = new_polygon_path.split('.')[:-1]
         new_name = new_polygon_path.split('/')[-1]
         new_polygon_name = new_name + ".gpkg"
         new_polygon_name = ''.join(new_polygon_name)
@@ -358,14 +357,15 @@ def save(self):
 
         # compute visualization of data analysis
         if self.mode == 'correcter':
+            dict_char_to_num = {'b':0,'t':1,'s':2,'e':3,'l':4,'i':5}
             pred_roofs = self.roofs.loc[self.roofs.EGID.isin(list(self.new_roofs.EGID.values))]
-            true = [self.label_to_class_name[x][1] for x in list(self.new_roofs['class'].values)]
-            pred = [self.label_to_class_name[x][1] for x in list(pred_roofs['class'].values)]
+            true = [dict_char_to_num[x] for x in list(self.new_roofs['class'].values)]
+            pred = [dict_char_to_num[x] for x in list(pred_roofs['class'].values)]
             show_confusion_matrix(
                 y_pred=pred,
                 y_true=true,
                 target_src=os.path.join(new_polygon_path, 'performances.png'),
-                class_labels=[x[0] for x in self.label_to_class_name],
+                class_labels=self.label_to_class_name.values(),
                 title="Performances",
                 do_save=True,
                 do_show=False,
@@ -447,13 +447,9 @@ def open_list_cat(self):
     def ok_button_pressed(window, tree):
         checked_items = tree.get_checked()
         checked_texts = [tree.item(item, "text") for item in checked_items]
-        if self.mode == 'correcter':
-            for id_txt, text in enumerate(checked_texts):
-                for cat_key, cat_val in self.label_to_class_name.items():
-                    if cat_val[0] == text:
-                        checked_texts[id_txt] = cat_key
         self.shown_cat = checked_texts
-        self.roofs_to_show = self.new_roofs.loc[self.new_roofs[self.input_class_name].isin(self.shown_cat)].reset_index(None)
+        shown_cat_keys = [key for key,val in self.label_to_class_name.items() if val in self.shown_cat]
+        self.roofs_to_show = self.new_roofs.loc[self.new_roofs[self.input_class_name].isin(shown_cat_keys)].reset_index(None)
         self.num_roofs_to_show = len(self.roofs_to_show)
         self.roof_index = 0
         self.show_image()
@@ -464,9 +460,6 @@ def open_list_cat(self):
     if len(self.new_roofs) == 0 or self.polygon_path == None:
         messagebox.showwarning("Information", "No polygon file loaded!")
         return
-    
-    categories = list(self.new_roofs[self.input_class_name].unique())
-    categories_texts = [self.label_to_class_name[x][0] for x in categories]
 
     # Create a Toplevel window (popup)
     checkbox_window = Toplevel(self.root)
@@ -489,12 +482,12 @@ def open_list_cat(self):
     tree.pack(side="left", fill="both", expand=True)
 
     # Add sample items to the CheckboxTreeview
-    for id_cat, cat in enumerate(categories):
-        if cat in self.shown_cat:
+    for cat in list(self.label_to_class_name.keys()):
+        if self.label_to_class_name[cat] in self.shown_cat:
             tag =('checked')
         else:
             tag = ('unchecked')
-        tree.insert("", "end", text=categories_texts[id_cat], tags = tag)
+        tree.insert("", "end", text=self.label_to_class_name[cat], tags = tag)
 
     # Add a vertical scrollbar and link it to the CheckboxTreeview
     scrollbar = ttk.Scrollbar(frame_scrollable, orient="vertical", command=tree.yview)
@@ -583,9 +576,6 @@ def remove_sample(self):
     self.roof_index -= 1
     self.show_next_image()
     self.UnsavedChanges = True
-
-
-
 
 
 if __name__ == '__main__':
