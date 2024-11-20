@@ -7,3 +7,4 @@ pillow
 tkinter
 rasterio
 ttkwidgets
+scikit-learn
