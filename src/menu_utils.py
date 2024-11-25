@@ -26,39 +26,27 @@ def menu_mode_choice(self, mode_window):
                 lbl.config(fg='light grey')
 
     def ok_button_pressed(return_value):
+        pool_of_multi_labels = {'b':'bare', 't':'terrace', 's':'spontaneous', 'e':'extensive', 'l':'lawn', 'i':'intensive'}
         if combobox_mode.get() != 'Select and option' and combobox_class != 'Select an option':
             self.mode = combobox_mode.get()
             self.input_class_name = combobox_class.get()
             self.new_roofs[self.input_class_name] = self.new_roofs[self.input_class_name].astype('string')
             if combobox_bare.get() != '-' and combobox_vege.get() != '-' and self.mode == 'labelizer':
-                self.input_bin_class_values['bare'] = combobox_bare.get()
-                self.input_bin_class_values['vegetated'] = combobox_vege.get()
-                """self.label_to_class_name = {
-                    'bare' : ['bare', self.input_bin_class_values['bare']],
-                    'vegetated' : ['vegetated', self.input_bin_class_values['vegetated']],
-                }"""
-                self.label_to_class_name = {
-                    self.input_bin_class_values['bare'] : 'bare',
-                    self.input_bin_class_values['vegetated'] : 'vegetated',
+                self.label_to_class = {
+                    combobox_bare.get(): 'bare',
+                    combobox_vege.get(): 'vegetated',
                 }
-                #self.new_roofs = self.new_roofs.loc[self.new_roofs[self.input_class_name].isin(list(self.input_bin_class_values.values()))]
+                self.class_to_label = {val:key for key,val in self.label_to_class.items()}
             elif self.mode == 'correcter':
-                self.label_to_class_name = {
-                    'b': 'bare',
-                    't': 'terrace',
-                    's': 'spontaneous',
-                    'e': 'extensive',
-                    'l': 'lawn',
-                    'i': 'intensive',
-                }
-                self.label_to_class_name = {x:y for x,y in self.label_to_class_name.items() if x in self.new_roofs[self.input_class_name].unique()}
+                self.label_to_class = {x:y for x,y in pool_of_multi_labels.items() if x in self.new_roofs[self.input_class_name].unique()}
+                self.class_to_label = {val:key for key,val in self.label_to_class.items()}
             else:
                 mode_window.destroy()
                 return
             
-            self.new_roofs = self.new_roofs.loc[self.new_roofs[self.input_class_name].isin(list(self.label_to_class_name.keys()))]
+            self.new_roofs = self.new_roofs.loc[self.new_roofs[self.input_class_name].isin(list(self.label_to_class.keys()))]
             
-            self.shown_cat = list(self.label_to_class_name.values())
+            self.shown_cat = list(self.label_to_class.values())
             return_value[0] = True
             mode_window.destroy()
     
@@ -93,18 +81,15 @@ def menu_mode_choice(self, mode_window):
             toggle_enabled(combobox_bare, [lbl_mapping, lbl_bare], 'enabled')
             toggle_enabled(combobox_vege, [lbl_vege], 'enabled')
         elif mode == 'correcter':
-            if set(class_values).intersection(set(self.label_to_class_name.keys())) == set([]):
+            pool_of_multi_labels = set(['b', 't', 's', 'e', 'l', 'i'])
+            if set(class_values).intersection(pool_of_multi_labels) == set([]):
                 messagebox.showerror("error", "The values of the class don't match the ones for multi class!")
                 mode_window.focus_set()
                 return
-            elif set(class_values).intersection(set(self.label_to_class_name.keys())) != set(class_values):
+            elif set(class_values).intersection(pool_of_multi_labels) != set(class_values):
                 messagebox.showwarning("error", "Some of the values of the class don't match the ones for multi class! Cooresponding samples will not be kept")
                 mode_window.focus_set()
             ok_button.config(state='enabled')
-            """if set(class_values) != set(['b', 't', 's', 'i', 'e', 'l']):
-                messagebox.showerror("error", "The values of the class don't match the ones for multi class!")
-                mode_window.focus_set()
-                return"""
         else:
             print('no class name selected!')
 
@@ -231,14 +216,19 @@ def load(self, mode=0):
                         self.mode = dict_save['mode']
                         self.input_class_name = dict_save['input_class_name']
                         self.input_bin_class_values = dict_save['input_bin_class_values']
-                        self.label_to_class_name = dict_save['label_to_class_name']
+                        self.label_to_class = dict_save['label_to_class']
+                        self.class_to_label = dict_save['class_to_label']
+                        self.changes_log = dict_save['changes_log']
                         self.show_image()
                         self.update_infos()
                     except Exception as e:
                         print("An error occured. The save file \"save_file.pkl\" must be absent or corrupted.")
                         print(f"Original error: {e}")
                     return
-                
+            self.changes_log = []
+            self.shown_cat = []
+            self.shown_meta = []
+
             # show mode choice window
             top_level = Toplevel(self.root)
             is_mode_well_set =  menu_mode_choice(self, top_level)
@@ -250,7 +240,7 @@ def load(self, mode=0):
                 self.new_roofs.rename(columns={self.input_class_name:'class_binary'}, inplace=True)
                 self.input_class_name = 'class_binary'
                 self.new_roofs.class_binary = self.new_roofs.class_binary.astype('string')
-                for cat, val in self.input_bin_class_values.items():
+                for cat, val in self.label_to_class.items():
                     self.new_roofs.loc[self.new_roofs.class_binary == str(val), 'class_binary'] = str(cat)
                 self.new_roofs['class'] = ""
             self.roofs_to_show = self.new_roofs.copy()
@@ -270,6 +260,8 @@ def load(self, mode=0):
     if self.polygon_path != "" and self.raster_path != "":
         self.roof_index = 0
         self.show_image()
+    if self.polygon_path != "" or self.raster_path != "":
+        self.update_infos()
 
     if mode == 3:
         save_path = filedialog.askopenfilename(
@@ -294,14 +286,16 @@ def load(self, mode=0):
                 self.mode = dict_save['mode']
                 self.input_class_name = dict_save['input_class_name']
                 self.input_bin_class_values = dict_save['input_bin_class_values']
-                self.label_to_class_name = dict_save['label_to_class_name']
+                self.label_to_class = dict_save['label_to_class']
+                self.class_to_label = dict_save['class_to_label']
+                self.changes_log = dict_save['changes_log']
                 self.show_image()
                 self.update_infos()
             except Exception as e:
                 print("An error occured. The save file \"save_file.pkl\" must be absent or corrupted.")
                 print(f"Original error: {e}")
             return
-    self.update_infos()
+    
 
 
 def save(self):
@@ -356,7 +350,9 @@ def save(self):
             'mode': self.mode,
             'input_class_name': self.input_class_name,
             'input_bin_class_values': self.input_bin_class_values,
-            'label_to_class_name': self.label_to_class_name,
+            'label_to_class': self.label_to_class,
+            'class_to_label': self.class_to_label,
+            'changes_log': self.changes_log,
         }
         with open(os.path.join(new_polygon_path, 'save_file.pkl'),'wb') as out_file:
             pickle.dump(dict_save, out_file)
@@ -377,7 +373,7 @@ def save(self):
                 y_pred=pred,
                 y_true=true,
                 target_src=os.path.join(new_polygon_path, 'performances.png'),
-                class_labels=self.label_to_class_name.values(),
+                class_labels=self.label_to_class.values(),
                 title="Performances",
                 do_save=True,
                 do_show=False,
@@ -459,7 +455,7 @@ def open_list_cat(self):
         checked_items = tree.get_checked()
         checked_texts = [tree.item(item, "text") for item in checked_items]
         self.shown_cat = checked_texts
-        shown_cat_keys = [key for key,val in self.label_to_class_name.items() if val in self.shown_cat]
+        shown_cat_keys = [key for key,val in self.label_to_class.items() if val in self.shown_cat]
         self.roofs_to_show = self.new_roofs.loc[self.new_roofs[self.input_class_name].isin(shown_cat_keys)].reset_index(None)
         self.num_roofs_to_show = len(self.roofs_to_show)
         self.roof_index = 0
@@ -493,12 +489,12 @@ def open_list_cat(self):
     tree.pack(side="left", fill="both", expand=True)
 
     # Add sample items to the CheckboxTreeview
-    for cat in list(self.label_to_class_name.keys()):
-        if self.label_to_class_name[cat] in self.shown_cat:
+    for cat in list(self.label_to_class.keys()):
+        if self.label_to_class[cat] in self.shown_cat:
             tag =('checked')
         else:
             tag = ('unchecked')
-        tree.insert("", "end", text=self.label_to_class_name[cat], tags = tag)
+        tree.insert("", "end", text=self.label_to_class[cat], tags = tag)
 
     # Add a vertical scrollbar and link it to the CheckboxTreeview
     scrollbar = ttk.Scrollbar(frame_scrollable, orient="vertical", command=tree.yview)
@@ -515,6 +511,7 @@ def open_list_meta(self):
         checked_items = tree.get_checked()
         checked_texts = [tree.item(item, "text") for item in checked_items]
         self.shown_meta = checked_texts
+        print(self.shown_meta)
         self.show_image()
         self.update_infos()
         window.destroy()
@@ -547,7 +544,7 @@ def open_list_meta(self):
     tree.pack(side="left", fill="both", expand=True)
 
     # Add sample items to the CheckboxTreeview
-    for id_meta, meta in enumerate(metadatas):
+    for meta in metadatas:
         if meta in self.shown_meta:
             tag =('checked')
         else:

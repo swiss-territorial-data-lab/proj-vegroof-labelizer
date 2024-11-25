@@ -38,21 +38,15 @@ class ImageViewer:
         self.order_var = None
         self.order_asc = True
 
-        self.label_to_class_name = {
-            'b': 'bare',
-            't': 'terrace',
-            's': 'spontaneous',
-            'e': 'extensive',
-            'l': 'lawn',
-            'i': 'intensive',
-        }
+        self.label_to_class = {}
+        self.class_to_label = {}
 
         self.metadata = {}
 
         # _ input variables
         self.input_class_name = ""
         self.mode = ""
-        self.input_bin_class_values = {}
+        #self.input_bin_class_values = {}
 
         # Set a custom font style for the app
         self.custom_font = font.Font(family="Helvetica", size=10, weight="bold")
@@ -212,7 +206,7 @@ class ImageViewer:
             return
 
         # get image from polygon and rasters
-        while self.label_to_class_name[self.roofs_to_show.iloc[self.roof_index][self.input_class_name]] not in self.shown_cat:
+        while self.label_to_class[self.roofs_to_show.iloc[self.roof_index][self.input_class_name]] not in self.shown_cat:
             self.roof_index += 1
         roof = self.roofs_to_show.iloc[self.roof_index]
         self.egid = roof.EGID
@@ -236,7 +230,7 @@ class ImageViewer:
             image = Image.open("./src/no_image.png").resize((512, 512))
             self.photo = ImageTk.PhotoImage(image)
             self.image.config(image=self.photo)
-            self.title.config(text=str(int(self.egid)) + ' - ' + self.label_to_class_name[cat])
+            self.title.config(text=str(int(self.egid)) + ' - ' + self.label_to_class[cat])
             return
         elif len(matching_rasters) == 1:
             img_arr = matching_images[0]
@@ -278,19 +272,19 @@ class ImageViewer:
         # _show image and title
         image_final = Image.fromarray(np.uint8(padded_image))
         self.photo = ImageTk.PhotoImage(image_final)
-        self.title.config(text=str(int(self.egid)) + ' - ' + self.label_to_class_name[cat])
+        self.title.config(text=str(int(self.egid)) + ' - ' + self.label_to_class[cat])
         self.image.config(image=self.photo)
 
     def show_next_image(self):
         self.roof_index = (self.roof_index + 1) % len(self.roofs_to_show)  # Loop around
-        while self.label_to_class_name[self.roofs_to_show.iloc[self.roof_index][self.input_class_name]] not in self.shown_cat:
+        while self.label_to_class[self.roofs_to_show.iloc[self.roof_index][self.input_class_name]] not in self.shown_cat:
             self.roof_index = (self.roof_index + 1) % len(self.roofs_to_show)  # Loop around
         self.show_image()
         self.update_infos()
 
     def show_previous_image(self):
         self.roof_index = (self.roof_index - 1) % len(self.roofs_to_show)  # Loop around
-        while self.label_to_class_name[self.roofs_to_show.iloc[self.roof_index][self.input_class_name]] not in self.shown_cat:
+        while self.label_to_class[self.roofs_to_show.iloc[self.roof_index][self.input_class_name]] not in self.shown_cat:
             self.roof_index = (self.roof_index - 1) % len(self.roofs_to_show)  # Loop around
         self.show_image()
         self.update_infos()
@@ -301,7 +295,7 @@ class ImageViewer:
         self.infos_files['Roof shown'] = f'{self.roof_index + 1} / {self.num_roofs_to_show}'
         self.infos_files['Polygons loc'] = self.polygon_path.split('/')[-1] if self.polygon_path != None else '-'
         self.infos_files['Rasters loc'] = self.raster_path.split('/')[-1] if self.raster_path != None else '-'
-        new_text = '\n'.join([item[0] + ': ' + str(item[1]) for item in self.infos_files.items()])
+        new_text = '\n'.join([key + ': ' + str(val) for key, val in self.infos_files.items()])
         self.label_infos_files.config(text=new_text)
 
         # security
