@@ -4,7 +4,6 @@ seaborn
 pandas
 geopandas
 pillow
-tkinter
 rasterio
 ttkwidgets
 scikit-learn
