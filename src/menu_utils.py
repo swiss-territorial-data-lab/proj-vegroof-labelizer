@@ -224,9 +224,13 @@ def load(self, mode=0):
                         print("An error occured. The save file \"save_file.pkl\" must be absent or corrupted.")
                         print(f"Original error: {e}")
                     return
+
+            # reset variables
             self.changes_log = []
             self.shown_cat = []
             self.shown_meta = []
+            self.order_var = None
+            self.order_asc = True
 
             # show mode choice window
             top_level = Toplevel(self.root)
@@ -310,7 +314,6 @@ def save(self):
         if not os.path.exists(new_polygon_path):
             os.mkdir(new_polygon_path)
 
-        print(new_polygon_path)
         # create geopackage file
         new_name = new_polygon_path.split('/')[-1]
         new_polygon_name = new_name + ".gpkg"
@@ -320,7 +323,6 @@ def save(self):
         new_polygon_src = os.path.join(new_polygon_path, new_polygon_name)
         new_csv_src = os.path.join(new_polygon_path, new_csv_name)
 
-        print(new_csv_src)
         # save roofs to geopackage and csv
         if self.mode == 'labelizer':
             self.new_roofs.loc[self.new_roofs['class'] != ""].drop('geometry', axis=1).to_csv(new_csv_src, sep=';', index=None)
@@ -328,14 +330,12 @@ def save(self):
         else: # if self.mode  = 'correcter
             self.new_roofs.to_file(new_polygon_src)
             self.new_roofs.drop('geometry', axis=1).to_csv(new_csv_src, sep=';', index=None)
-        print("managed to save csv")
 
         # save list of changes
         with open(os.path.join(new_polygon_path, 'modification_logs.txt'), 'w') as file:
             for egid in self.changes_log:
                 file.write(f"{egid}\n")
 
-        print("managed to save txt")
         # save GeoDataFrames
         dict_save = {
             'polygon_path': self.polygon_path,
@@ -357,7 +357,6 @@ def save(self):
         with open(os.path.join(new_polygon_path, 'save_file.pkl'),'wb') as out_file:
             pickle.dump(dict_save, out_file)
 
-        print("managed to save pickle")
     except AttributeError:
         _ = messagebox.showerror("Error", "A problem happened! Either the path to the polygon has not been set or is non-existant.")
     else:
