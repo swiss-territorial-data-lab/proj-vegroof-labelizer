@@ -7,11 +7,11 @@ It can achieve two different tasks:
 
 ## Initialization
 There is two ways of setting the environnement up from the root of the project:
-    - Pip:
-      1) Creation of the environement: `python -m venv .venv `
-      2) Importing the libraries through the requirements.txt file: `pip install -r requirements.txt`
-    - Conda:
-      1) Simply run the following command: `conda env create -f environment.yml`
+- Pip:
+  1) Creation of the environement: `python -m venv .venv`
+  2) Importing the libraries through the requirements.txt file: `pip install -r requirements.txt`
+- Conda:
+  1) Simply run the following command: `conda env create -f environment.yml`
       
 ## Tutorial
 Here is a small step-by-step to labelize or correct your first dataset:
