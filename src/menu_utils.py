@@ -312,6 +312,7 @@ def save(self):
         if not os.path.exists(new_polygon_path):
             os.mkdir(new_polygon_path)
 
+        print(new_polygon_path)
         # create geopackage file
         new_name = new_polygon_path.split('/')[-1]
         new_polygon_name = new_name + ".gpkg"
@@ -321,6 +322,7 @@ def save(self):
         new_polygon_src = os.path.join(new_polygon_path, new_polygon_name)
         new_csv_src = os.path.join(new_polygon_path, new_csv_name)
 
+        print(new_csv_src)
         # save roofs to geopackage and csv
         if self.mode == 'labelizer':
             self.new_roofs.loc[self.new_roofs['class'] != ""].drop('geometry', axis=1).to_csv(new_csv_src, sep=';', index=None)
@@ -328,13 +330,14 @@ def save(self):
         else: # if self.mode  = 'correcter
             self.new_roofs.to_file(new_polygon_src)
             self.new_roofs.drop('geometry', axis=1).to_csv(new_csv_src, sep=';', index=None)
-
+        print("managed to save csv")
 
         # save list of changes
         with open(os.path.join(new_polygon_path, 'modification_logs.txt'), 'w') as file:
             for egid in self.changes_log:
                 file.write(f"{egid}\n")
 
+        print("managed to save txt")
         # save GeoDataFrames
         dict_save = {
             'polygon_path': self.polygon_path,
@@ -349,7 +352,6 @@ def save(self):
             'list_rasters_src': self.list_rasters_src,
             'mode': self.mode,
             'input_class_name': self.input_class_name,
-            'input_bin_class_values': self.input_bin_class_values,
             'label_to_class': self.label_to_class,
             'class_to_label': self.class_to_label,
             'changes_log': self.changes_log,
@@ -357,6 +359,7 @@ def save(self):
         with open(os.path.join(new_polygon_path, 'save_file.pkl'),'wb') as out_file:
             pickle.dump(dict_save, out_file)
 
+        print("managed to save pickle")
     except AttributeError:
         _ = messagebox.showerror("Error", "A problem happened! Either the path to the polygon has not been set or is non-existant.")
     else:

@@ -57,6 +57,7 @@ class ImageViewer:
         root.geometry(f"800x800+{int(screen_width/2-400)}+{int(screen_height/2-400)}")
         root.resizable(False,False)
         root.configure(bg="#2c3e50")
+        root.title('GeoLabelizer')
         
         # Create the menu
         menu_bar = Menu(root)
