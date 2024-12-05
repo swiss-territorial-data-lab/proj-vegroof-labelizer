@@ -218,11 +218,11 @@ def load(self, mode=0):
                         self.label_to_class = dict_save['label_to_class']
                         self.class_to_label = dict_save['class_to_label']
                         self.changes_log = dict_save['changes_log']
-                        self.show_image()
-                        self.update_infos()
                     except Exception as e:
                         print("An error occured. The save file \"save_file.pkl\" must be absent or corrupted.")
                         print(f"Original error: {e}")
+                    self.show_image()
+                    self.update_infos()
                     return
 
             # reset variables
@@ -298,7 +298,6 @@ def load(self, mode=0):
                 print(f"Original error: {e}")
             return
     
-
 
 def save(self):
     if self.UnsavedChanges == 0:

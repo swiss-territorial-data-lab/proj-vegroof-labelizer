@@ -10,6 +10,7 @@ import rasterio
 from rasterio.mask import mask
 from functools import partial
 from src.menu_utils import *
+from src.image_utils import show_image, zoom, drag_image, start_drag, update_image
 
 
 class ImageViewer:
@@ -34,7 +35,7 @@ class ImageViewer:
             'Roof shown': '0/0',
         }
 
-        # _ ordering variables
+        #   _ordering variables
         self.order_var = None
         self.order_asc = True
 
@@ -43,7 +44,7 @@ class ImageViewer:
 
         self.metadata = {}
 
-        # _ input variables
+        #   _input variables
         self.input_class_name = ""
         self.mode = ""
         #self.input_bin_class_values = {}
@@ -62,7 +63,7 @@ class ImageViewer:
         # Create the menu
         menu_bar = Menu(root)
         
-        # _ add loading menu
+        #   _add loading menu
         load_menu = Menu(menu_bar, tearoff=0)
         load_menu.add_command(label='Polygons', command=partial(load, self, 1))
         load_menu.add_command(label='Rasters', command=partial(load, self, 2))
@@ -70,16 +71,16 @@ class ImageViewer:
         load_menu.add_command(label='From save', command=partial(load, self, 3))
         menu_bar.add_cascade(label='Load', menu=load_menu)
 
-        # _ add selection of categories and metadata to show
+        #   _add selection of categories and metadata to show
         select_menu = Menu(menu_bar, tearoff=0)
         select_menu.add_command(label="categories to show", command=partial(open_list_cat, self))
         select_menu.add_command(label="metadata to show", command=partial(open_list_meta, self))
         menu_bar.add_cascade(label='Select', menu=select_menu)
 
-        # _ add ordering
+        #   _add ordering
         menu_bar.add_command(label="Order", command=partial(order, self))
 
-        # _ add save and exit options
+        #   _add save and exit options
         menu_bar.add_command(label='Save', command=partial(save, self))
         menu_bar.add_command(label='Exit', command=partial(exit, self))
 
@@ -119,7 +120,21 @@ class ImageViewer:
         self.title.place(x=20,y=80, width=520)
         
         # Display image and image info
-        self.image = Label(root)
+        self.current_zoom = 1.0  # Initial zoom level
+        self.initial_zoom = 0.0
+        self.offset_x = 0
+        self.offset_y = 0
+
+        # Get the image dimensions
+        img_dim = 512
+        self.img_width, self.img_height = (img_dim, img_dim)
+
+        #self.image = Label(root)
+        self.image = Canvas(root, width=self.img_width, height=self.img_height)
+        self.image_id = 0
+        self.original_image = None
+        self.display_image = None
+        self.margin_around_image = 50
         self.image.place(x=20, y=120)
         img_info_font = font.Font(family="Helvetica", size=12, weight="bold", slant="italic")
         self.infos_sample = Label(root, text="",
@@ -170,13 +185,21 @@ class ImageViewer:
         self.intensive_button = ttk.Button(self.class_button_frame, text="Intensive", command=partial(self.change_category, "i"))
         self.intensive_button.pack(side="left", padx=5)
 
-        # key mapping
+        # Key binding
+        #   _samples navigation
         root.bind('a', lambda event: self.show_previous_image())
         root.bind('d', lambda event: self.show_next_image())
         root.bind('<Left>', lambda event: self.show_previous_image())
         root.bind('<Right>', lambda event: self.show_next_image())
         root.bind('<space>', lambda event: self.show_next_image())
         root.bind('<Control-s>', lambda event: save(self))
+
+        #   _image navigation (drag & zoom)
+        self.image.bind("<MouseWheel>",lambda event:  zoom(self, event))
+        #self.image.bind("<B1-Motion>",lambda event:  drag_image(self, event))
+        #self.image.bind("<Button-1>",lambda event:  start_drag(self, event))
+
+
 
         # temp-------------------
         """self.polygon_path = "D:/GitHubProjects/STDL_sample_labelizer/data/sources/inf_binary_LR_RF.gpkg"
@@ -196,98 +219,26 @@ class ImageViewer:
         self.update_infos()"""
         # -----------------------
 
-        self.show_image()
+        show_image(self)
    
     def show_image(self):
-        if len(self.list_rasters_src) == 0 or len(self.roofs_to_show) == 0:
-            image = Image.open("./src/no_image.png").resize((512, 512))
-            self.photo = ImageTk.PhotoImage(image)
-            self.image.config(image=self.photo)
-            self.title.config(text="No sample to display")
-            return
-
-        # get image from polygon and rasters
-        while self.label_to_class[self.roofs_to_show.iloc[self.roof_index][self.input_class_name]] not in self.shown_cat:
-            self.roof_index += 1
-        roof = self.roofs_to_show.iloc[self.roof_index]
-        self.egid = roof.EGID
-        cat = roof[self.input_class_name]
-        geom = roof.geometry
-
-        matching_rasters = []
-        matching_images = []
-        for raster_src in self.list_rasters_src:
-            raster = rasterio.open(raster_src)
-            try:
-                img_arr, _ = mask(raster, [geom], crop=True)
-            except ValueError:
-                continue
-            else:
-                matching_rasters.append(raster)
-                matching_images.append(img_arr)
-
-        # test if polygon match with one or multiple rasters:    
-        if len(matching_rasters) == 0:
-            image = Image.open("./src/no_image.png").resize((512, 512))
-            self.photo = ImageTk.PhotoImage(image)
-            self.image.config(image=self.photo)
-            self.title.config(text=str(int(self.egid)) + ' - ' + self.label_to_class[cat])
-            return
-        elif len(matching_rasters) == 1:
-            img_arr = matching_images[0]
-        else:
-            img_size_max = np.sum(matching_images[0].shape)
-            img_arr = matching_images[0]
-            for img in matching_images:
-                if np.sum(img.shape) > img_size_max:
-                    img_size_max = np.sum(img.shape)
-                    img_arr = img
-
-        # transform if image is in 16bits:
-        if img_arr.dtype == 'uint16':
-            img_arr = (img_arr/np.max(img_arr) * 255).astype('uint8')
-
-        # show results
-        img_arr = np.moveaxis(img_arr[1:4,...], 0, 2)
-        image = Image.fromarray(img_arr)
-
-        # _resize image
-        max_size = np.max(img_arr.shape[:2])
-        ratio = 512 / max_size
-        new_size = np.flip((np.array(img_arr.shape[0:2]) * ratio).astype(int))
-        image_resized = np.array(image.resize(new_size))  # Resize for display
-
-        # _add padding
-        min_axis = np.argmin(image_resized.shape[:2])
-        min_size = np.min(image_resized.shape[:2])
-        padding_size = int((512 - min_size)/2)
-        padding = [(padding_size, padding_size), (0, 0), (0, 0)] if min_axis == 0 else [(0, 0), (padding_size, padding_size), (0, 0)]
-        padded_image = np.pad(image_resized,padding, mode='constant')
-        
-        # control sizes
-        for ax in range(2):
-            while padded_image.shape[ax] < 512:
-                additional_padding = np.zeros((1,padded_image.shape[1],3)) if ax == 0 else np.zeros((padded_image.shape[0], 1,3))
-                padded_image = np.concatenate((padded_image, additional_padding), axis=ax)
-
-        # _show image and title
-        image_final = Image.fromarray(np.uint8(padded_image))
-        self.photo = ImageTk.PhotoImage(image_final)
-        self.title.config(text=str(int(self.egid)) + ' - ' + self.label_to_class[cat])
-        self.image.config(image=self.photo)
+        show_image(self)
+    
+    def update_image(self):
+        update_image(self)
 
     def show_next_image(self):
         self.roof_index = (self.roof_index + 1) % len(self.roofs_to_show)  # Loop around
         while self.label_to_class[self.roofs_to_show.iloc[self.roof_index][self.input_class_name]] not in self.shown_cat:
             self.roof_index = (self.roof_index + 1) % len(self.roofs_to_show)  # Loop around
-        self.show_image()
+        show_image(self)
         self.update_infos()
 
     def show_previous_image(self):
         self.roof_index = (self.roof_index - 1) % len(self.roofs_to_show)  # Loop around
         while self.label_to_class[self.roofs_to_show.iloc[self.roof_index][self.input_class_name]] not in self.shown_cat:
             self.roof_index = (self.roof_index - 1) % len(self.roofs_to_show)  # Loop around
-        self.show_image()
+        show_image(self)
         self.update_infos()
     
     def update_infos(self):
@@ -363,7 +314,7 @@ class ImageViewer:
         
     def select_sample(self, event):
         self.roof_index = int(self.roof_index_combobox.get()) - 1
-        self.show_image()
+        show_image(self)
         self.update_infos()
         
 def main():
