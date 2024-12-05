@@ -3,6 +3,7 @@ from PIL import Image, ImageTk, ImageDraw
 import rasterio
 from rasterio.mask import mask
 from rasterio.plot import show
+from rasterio.merge import merge
 import tkinter as tk
 from shapely.affinity import scale
 from shapely.geometry import Polygon, MultiPolygon
@@ -103,12 +104,12 @@ def show_image(self):
     elif len(matching_rasters) == 1:
         img_arr = matching_images[0]
     else:
-        img_size_max = np.sum(matching_images[0].shape)
-        img_arr = matching_images[0]
-        for img in matching_images:
-            if np.sum(img.shape) > img_size_max:
-                img_size_max = np.sum(img.shape)
-                img_arr = img
+        img_arr, out_transform = merge(
+        sources=matching_rasters, 
+        nodata=0, 
+        bounds=geom_large.bounds,
+        resampling=rasterio.enums.Resampling.nearest
+        )
     img_arr = img_arr[1:4, ...]
 
     # Plot the raster and overlay the original polygon
@@ -125,7 +126,7 @@ def show_image(self):
             coords_to_show = [polygon.exterior.coords for polygon in geometry.geoms]
     for coords in coords_to_show:
         x, y = zip(*coords)
-        ax.plot(x, y, color="red", linewidth=2, label="Original Polygon")
+        ax.plot(x, y, color="yellow", linewidth=2, label="Original Polygon")
     plt.axis('off')
     plt.subplots_adjust(left=0, right=1, top=1, bottom=0)
 
@@ -162,12 +163,12 @@ def show_image(self):
             additional_padding = np.zeros((1,padded_image.shape[1],3)) if ax == 0 else np.zeros((padded_image.shape[0], 1,3))
             padded_image = np.concatenate((padded_image, additional_padding), axis=ax)
 
-
     #   _show image and title
     self.original_image = Image.fromarray(np.uint8(padded_image))
     self.display_image = self.original_image.copy()
     self.photo = ImageTk.PhotoImage(self.display_image)
     self.image_id = self.image.create_image(0, 0, anchor=tk.NW, image=self.photo)
+    self.title.config(text=str(int(self.egid)) + ' - ' + self.label_to_class[cat])
 
     # apply initial zoom
     self.initial_zoom = (max(deltax, deltay) + 2 * self.margin_around_image) / max(deltax, deltay)
