@@ -3,7 +3,7 @@ import os
 import numpy as np
 import pickle
 import pandas as pd
-from tkinter import Tk, Menu, Label, Button, Frame, font, filedialog, messagebox, Checkbutton, Scrollbar, IntVar, Canvas,Toplevel
+from tkinter import Tk, Menu, Label, Button, Frame, Text, font, filedialog, messagebox, Checkbutton, Scrollbar, IntVar, Canvas,Toplevel
 from tkinter.scrolledtext import ScrolledText
 from tkinter import ttk
 from tkinter.ttk import Combobox
@@ -26,7 +26,48 @@ def menu_mode_choice(self, mode_window):
                 lbl.config(fg='light grey')
 
     def ok_button_pressed(return_value):
-        pool_of_multi_labels = {'b':'bare', 't':'terrace', 's':'spontaneous', 'e':'extensive', 'l':'lawn', 'i':'intensive'}
+        if combobox_mode.get() == 'labelizer':
+            # test if nothing missing
+            if do_select_col.get() == 1.0:
+                if combobox_select_col.get() == "Select":
+                    messagebox.showwarning("warning", "Missing values!")
+                    return
+                lst_values = list(self.new_dataset[combobox_select_col.get()].unique())
+                for idx, textbox in enumerate(lst_vals_select_col_lbl):
+                    if lst_vals_select_col_val[idx].cget('text') in lst_values and textbox.get() == "":
+                        messagebox.showwarning("warning", "Missing values!")
+                        return
+            if text_interest_col_create.get() == "":
+                messagebox.showwarning("warning", "Missing values!")
+                return
+            for idx, textbox in enumerate(lst_vals_interest_col_lbl):
+                if textbox.get() != "":
+                    if lst_vals_interest_col_val.get() == "":
+                        messagebox.showwarning("warning", "Missing values!")
+                        return
+
+            # assign values
+            pass
+            
+        elif combobox_mode.get() == 'correcter':
+            # test if nothing missing
+            if combobox_interest_col.get() == "Select":
+                messagebox.showwarning("warning", "Missing values!")
+                return
+            lst_values = list(self.new_dataset[combobox_interest_col.get()].unique())
+            for idx, textbox in enumerate(lst_vals_interest_col_val):
+                if textbox.get() in lst_values and lst_vals_interest_col_lbl.get() == "":
+                    messagebox.showwarning("warning", "Missing values!")
+                    return
+            # assign values
+            pass
+        else:
+            messagebox.showwarning("warning", "Missing values!")
+
+
+
+
+        """pool_of_multi_labels = {'b':'bare', 't':'terrace', 's':'spontaneous', 'e':'extensive', 'l':'lawn', 'i':'intensive'}
         if combobox_mode.get() != 'Select and option' and combobox_class != 'Select an option':
             self.mode = combobox_mode.get()
             self.input_class_name = combobox_class.get()
@@ -48,23 +89,39 @@ def menu_mode_choice(self, mode_window):
             
             self.shown_cat = list(self.label_to_class.values())
             return_value[0] = True
-            mode_window.destroy()
+            mode_window.destroy()"""
     
     def mode_chosen(event):
         mode = combobox_mode.get()
-        if mode in ['labelizer', 'correcter']:
-            toggle_enabled(combobox_class, [lbl_class_name], 'enabled')
-            if combobox_class.get() != 'Select an option':
-                class_chosen(event)
-            if mode == 'correcter':
-                toggle_enabled(combobox_bare, [lbl_mapping, lbl_bare], 'disabled')
-                toggle_enabled(combobox_vege, [lbl_vege], 'disabled')
-                combobox_bare.set('-')
-                combobox_vege.set('-')
-                mapping_classes(event)
-        else:
-            print('no mode selected!')
-
+        if mode == 'labelizer':
+            toggle_selection_frame(frame_interest_col, 'normal')
+            toggle_selection_frame(frame_select_col_header, 'normal')
+            combobox_interest_col.set('Select')
+            for i in range(6):
+                lst_vals_interest_col_val[i].delete("1.0", tk.END)
+                lst_vals_interest_col_val[i].insert("1.0", f"Val {i}")
+                lst_vals_interest_col_lbl[i].delete("1.0", tk.END)
+            toggle_selection_frame(frame_interest_col_mapping_sub11 ,'disabled')
+            toggle_selection_frame(frame_select_col_mapping ,'disabled')
+        else:   # if 'correcter'
+            do_select_col.set(0)
+            combobox_select_col.set('Select')
+            combobox_interest_col.set('Select')
+            for i in range(6):
+                lst_vals_select_col_val[i].config(text=f"Val {i}", foreground='light grey')
+                lst_vals_select_col_lbl[i].delete("1.0", tk.END)
+            text_interest_col_create.delete("1.0",tk.END)
+            for i in range(6):
+                lst_vals_interest_col_val[i].delete("1.0", tk.END)
+                lst_vals_interest_col_val[i].insert("1.0", f"Val {i}")
+                lst_vals_interest_col_val[i].config(foreground='light grey')
+                lst_vals_interest_col_lbl[i].delete("1.0", tk.END)
+            toggle_selection_frame(frame_select_col_header, 'disabled')
+            toggle_selection_frame(frame_interest_col_mapping_sub2, 'disabled')
+            toggle_selection_frame(frame_interest_col_mapping_sub11 ,'normal')
+            toggle_selection_frame(frame_interest_col_mapping_sub12 ,'disabled')
+            toggle_selection_frame(frame_select_col_mapping ,'disabled')
+            
     def class_chosen(event):  
         class_name = combobox_class.get()
         class_values = list(self.new_dataset[class_name].unique())
@@ -100,27 +157,73 @@ def menu_mode_choice(self, mode_window):
             ok_button.config(state='enabled')
         else:
             ok_button.config(state='disabled')
-
-    def toggle_selection_col():
+    
+    def checkbox_selection_col():
         if do_select_col.get() == 0:
-            for child in frame_select_col_mapping_sub1.winfo_children():
-                child.configure(state='disabled', foreground='light grey')
+            toggle_selection_frame(frame_select_col_mapping_sub1, 'disabled')
+            toggle_selection_frame(frame_select_col_mapping_sub2, 'disabled')
+            combobox_select_col.set("Select")
         else:
-            for child in frame_select_col_mapping_sub1.winfo_children():
-                child.configure(state='active', foreground='black')
+            toggle_selection_frame(frame_select_col_mapping_sub1, 'normal')
+
+    def toggle_selection_frame(frame, state):
+        for child in frame.winfo_children():
+            if isinstance(child, (tk.Entry, tk.Label, tk.Button, ttk.Combobox, tk.Checkbutton, tk.Radiobutton, tk.Text)):       
+                if state == 'disabled':
+                    child.configure(state='disabled', foreground='light grey')
+                elif state == 'normal':
+                    child.configure(state='normal', foreground='black')
+                else:
+                    print("problem!")
+            elif isinstance(child, tk.Frame):
+                toggle_selection_frame(child, state)
 
     def select_col_selection(event):
         select_col = combobox_select_col.get()
         lst_values = self.new_dataset[select_col].unique()
         if len(lst_values) > 6:
             messagebox.showerror("error", "Too many different values for selected column. Max 6 !")
-            combobox_select_col.set('Select an option')
+            combobox_select_col.set('Select')
             mode_window.focus_set()
             return
+        toggle_selection_frame(frame_select_col_mapping_sub2,'normal')
         self.frac_col = select_col
         self.frac_col_val_to_lbl = {val:"" for val in lst_values}
+        for i in range(6):
+            lst_vals_select_col_val[i].config(text=f"Val {i}")
+            lst_vals_select_col_lbl[i].delete("1.0", tk.END)
+        for idx, value in enumerate(lst_values):
+            lst_vals_select_col_val[idx].config(text=value)
+        for i in np.arange(len(lst_values), 6):
+            lst_vals_select_col_val[i].config(foreground='light grey', state='disabled')
+            lst_vals_select_col_lbl[i].config(state='disabled')
 
 
+    def interest_col_selection(event):
+        select_col = combobox_interest_col.get()
+        lst_values = self.new_dataset[select_col].unique()
+        if len(lst_values) > 6:
+            messagebox.showerror("error", "Too many different values for selected column. Max 6 !")
+            combobox_interest_col.set('Select')
+            mode_window.focus_set()
+            return
+        toggle_selection_frame(frame_interest_col_mapping_sub2, 'normal')
+        self.interest_col = select_col
+        self.interest_col_val_to_lbl = {val:"" for val in lst_values}
+        for i in range(6):
+            lst_vals_interest_col_val[i].delete("1.0", tk.END)
+            lst_vals_interest_col_val[i].insert('1.0', f"Val {i}")
+            lst_vals_interest_col_lbl[i].delete("1.0", tk.END)
+        for idx, value in enumerate(lst_values):
+            lst_vals_interest_col_val[idx].delete("1.0", tk.END)
+            lst_vals_interest_col_val[idx].insert("1.0", value)
+            lst_vals_interest_col_val[idx].config(state='disabled')
+        mode = combobox_mode.get()
+        for i in np.arange(len(lst_values), 6):
+            lst_vals_interest_col_val[i].config(foreground='light grey')
+            if mode == 'correcter':
+                lst_vals_interest_col_val[i].config(state='disabled')
+                lst_vals_interest_col_lbl[i].config(state='disabled')
     
     # result that say if the mode has been correctly set
     return_value = [False]
@@ -135,7 +238,7 @@ def menu_mode_choice(self, mode_window):
     mode_window.title("Categories selection")
     root_pos = [self.root.winfo_x(), self.root.winfo_y()]
     root_dim = [self.root.winfo_width(), self.root.winfo_height()]
-    mode_window.geometry(f"400x350+{int(root_pos[0]+root_dim[0]/2-200)}+{int(root_pos[1]+root_dim[1]/2-300)}")
+    mode_window.geometry(f"400x500+{int(root_pos[0]+root_dim[0]/2-200)}+{int(root_pos[1]+root_dim[1]/2-300)}")
 
     # select mode
     label = Label(mode_window, text="Select mode:")
@@ -146,110 +249,110 @@ def menu_mode_choice(self, mode_window):
     combobox_mode.pack(pady=20)
 
     # select selection column
-    frame_select_col = Frame(mode_window, width=350, height=200)
+    #   _ ask if selection column
+    frame_select_col_header = Frame(mode_window, width=350, height=30)
+    frame_select_col_header.pack()
+    frame_select_col_header.pack_propagate(False)
+    lbl_select_col = Label(frame_select_col_header, text="Do you want to add a selection column?", foreground='light grey', state='disabled')
+    lbl_select_col.pack(side='left', padx=10)
+    do_select_col = tk.IntVar()
+    checkbutton_do_select_col = tk.Checkbutton(frame_select_col_header, text="", variable=do_select_col, onvalue=1, offvalue=0, command=checkbox_selection_col)
+    checkbutton_do_select_col.pack(side='right')
+    checkbutton_do_select_col.config(state='disabled')
+    
+    #   _main frame
+    frame_select_col = Frame(mode_window, width=350, height=150)
     frame_select_col.pack()
     frame_select_col.pack_propagate(False)
 
-    #   _select the column of interest
-    frame_select_col_header = Frame(frame_select_col, width=350, height=30)
-    frame_select_col_header.pack()
-    frame_select_col_header.pack_propagate(False)
-    lbl_select_col = Label(frame_select_col_header, text="Do you want to add a selection column?")
-    lbl_select_col.pack(side='left', padx=10)
-    do_select_col = tk.IntVar()
-    checkbutton_do_select_col = tk.Checkbutton(frame_select_col_header, text="", variable=do_select_col, onvalue=1, offvalue=0, command=toggle_selection_col)
-    checkbutton_do_select_col.pack(side='right')
-
-    #   _mapping of the column of interest
-    frame_select_col_mapping = Frame(frame_select_col, width=350, height=170)
+    #   _mapping of the column
+    frame_select_col_mapping = Frame(frame_select_col, width=350, height=90)
     frame_select_col_mapping.pack()
 
     #       _column selection
     frame_select_col_mapping_sub1 = Frame(frame_select_col_mapping, width=350, height=30)
     frame_select_col_mapping_sub1.pack()
     frame_select_col_mapping_sub1.pack_propagate(False)
-    lbl_select_col_mapping = Label(frame_select_col_mapping_sub1, text="Select column: ", foreground='light grey')
+    lbl_select_col_mapping = Label(frame_select_col_mapping_sub1, text="Select column: ", foreground='light grey', state='disabled')
     lbl_select_col_mapping.pack(side='left', padx=10)
-    combobox_select_col = Combobox(frame_select_col_mapping_sub1, values=list(self.new_dataset.columns))
+    combobox_select_col = Combobox(frame_select_col_mapping_sub1, values=list(self.new_dataset.columns), state="disabled", foreground='light grey')
     combobox_select_col.set("Select")  # Texte par défaut
     combobox_select_col.pack(side='right', padx=10)
-    combobox_select_col.config(state="disabled", foreground='light grey')
 
     #       _mapping grid
-    frame_select_col_mapping_sub2 = Frame(frame_select_col_mapping, width=350, height=140)
+    frame_select_col_mapping_sub2 = Frame(frame_select_col_mapping, width=350, height=60)
     frame_select_col_mapping_sub2.pack()
+    lbl_select_grid = Label(frame_select_col_mapping_sub2, text='Map values of column to labels:', state='disabled', foreground='light grey')
+    lbl_select_grid.pack(anchor='w')
+    lst_vals_select_col_val = []
+    lst_vals_select_col_lbl = []
     for i in range(6):
         if not i % 2:
             new_frame = Frame(frame_select_col_mapping_sub2, width=350, height=20)
             new_frame.pack()
             new_frame.pack_propagate(False)
-        new_lbl = Label(new_frame, text=f"Val {i}")
+        new_lbl = Label(new_frame, text=f"Val {i}", foreground='light grey', width=5, state='disabled')
         new_lbl.pack(side='left', padx=10)
-        new_textbox = tk.Text(new_frame, width=10, height=1)
+        new_textbox = Text(new_frame, width=10, height=1)
         new_textbox.pack(side='left', padx=10, expand=False, fill=None)
-
-
-
-    lbl_test = Label(mode_window, text="test")
-    #frame_select_col.pack_forget()
-    lbl_test.pack()
+        new_textbox.config(state='disabled', foreground='light grey')
+        lst_vals_select_col_val.append(new_lbl)
+        lst_vals_select_col_lbl.append(new_textbox)
 
     # select interest column
+    frame_interest_col = Frame(mode_window, width=350, height=150)
+    frame_interest_col.pack()
 
-    # Create a Toplevel window with transparency
-    transparent_window = tk.Toplevel(mode_window)
-    transparent_window.geometry("200x100+100+100")
-    transparent_window.attributes("-alpha", 0.5)  # Set transparency (0.0 to 1.0)
-    transparent_window.configure(bg="black")
-    # bindings
-    combobox_select_col.bind("<<ComboboxSelected>>", select_col_selection)
+    #   _mapping of the column
+    frame_interest_col_mapping = Frame(frame_interest_col, width=350, height=170)
+    frame_interest_col_mapping.pack()
 
-    """# select label column
-    lbl_class_name = Label(mode_window, text="Select the column with the class name:", fg='light grey')
-    lbl_class_name.pack(anchor='w', padx=10)
+    #       _column selection
+    frame_interest_col_mapping_sub11 = Frame(frame_interest_col_mapping, width=350, height=30)
+    frame_interest_col_mapping_sub11.pack()
+    lbl_interest_col_mapping_select = Label(frame_interest_col_mapping_sub11, text="Select column of interest: ", foreground='light grey')
+    lbl_interest_col_mapping_select.pack(side='left', padx=10)
+    combobox_interest_col = Combobox(frame_interest_col_mapping_sub11, values=list(self.new_dataset.columns), state="disabled", foreground='light grey')
+    combobox_interest_col.set("Select")  # Texte par défaut
+    combobox_interest_col.pack(side='right', padx=10)
+    lbl_random = Label(frame_interest_col_mapping, text='or', state='disabled', foreground='light grey')
+    lbl_random.pack()
+    frame_interest_col_mapping_sub12 = Frame(frame_interest_col_mapping, width=350, height=30)
+    frame_interest_col_mapping_sub12.pack()
+    lbl_interest_col_mapping_create = Label(frame_interest_col_mapping_sub12, text="Create column of interest: ", foreground='light grey')
+    lbl_interest_col_mapping_create.pack(side='left', padx=10)
+    text_interest_col_create = Text(frame_interest_col_mapping_sub12, width=20, height=1, state='disabled', foreground='light grey')
+    text_interest_col_create.pack(side='right', padx=10)
 
-    combobox_class = Combobox(mode_window, values=list(self.new_dataset.columns))
-    combobox_class.set("Select an option")  # Texte par défaut
-    combobox_class.pack(pady=20)
-    combobox_class.config(state="disabled", foreground='light grey')
+    #       _mapping grid
+    frame_interest_col_mapping_sub2 = Frame(frame_interest_col_mapping, width=350, height=140)
+    frame_interest_col_mapping_sub2.pack()
+    lbl_interest_grid = Label(frame_interest_col_mapping_sub2, text='Map values of column to labels:', state='disabled', foreground='light grey')
+    lbl_interest_grid.pack(anchor='w')
+    lst_vals_interest_col_val = []
+    lst_vals_interest_col_lbl = []
+    for i in range(6):
+        if not i % 2:
+            new_frame = Frame(frame_interest_col_mapping_sub2, width=350, height=20)
+            new_frame.pack()
+            new_frame.pack_propagate(False)
+        new_textbox_val = Text(new_frame, width=5, height=1, foreground='light grey')
+        new_textbox_val.pack(side='left', padx=10, expand=False, fill=None)
+        new_textbox_val.insert("1.0", f"Val {i}")
+        new_textbox_val.config(state='disabled')
+        new_textbox_lbl = Text(new_frame, width=10, height=1, state='disabled', foreground='light grey')
+        new_textbox_lbl.pack(side='left', padx=5, expand=False, fill=None)
+        lst_vals_interest_col_val.append(new_textbox_val)
+        lst_vals_interest_col_lbl.append(new_textbox_lbl)
 
-    # map label to class
-    lbl_mapping = Label(mode_window, text='Values mapping (only in "labelizer" mode):', fg='light grey')
-    lbl_mapping.pack(anchor='w', padx=10)
-
-    frame_bare = Frame(mode_window, width=250, height=35)
-    frame_bare.pack()
-    frame_bare.pack_propagate(False) 
-    lbl_bare = Label(frame_bare, text='bare: ', fg='light grey')
-    lbl_bare.pack(side='left')
-    combobox_bare = Combobox(frame_bare, values=range(4), width=15)
-    combobox_bare.set('-')  # Texte par défaut
-    combobox_bare.pack(side='right')
-    combobox_bare.config(state="disabled", foreground='light grey')
-
-    frame_vege = Frame(mode_window, width=250, height=35)
-    frame_vege.pack()
-    frame_vege.pack_propagate(False) 
-    lbl_vege = Label(frame_vege, text='vegetation: ', fg='light grey')
-    lbl_vege.pack(side='left')
-    combobox_vege = Combobox(frame_vege, values=list(self.new_dataset.columns), width=15)
-    combobox_vege.set('-')  # Texte par défaut
-    combobox_vege.pack(side='right')
-    combobox_vege.config(state="disabled", foreground='light grey')
-    
     # Add ok button
     ok_button = ttk.Button(mode_window, text='OK', command=partial(ok_button_pressed, return_value))
     ok_button.pack(pady=20)
-    ok_button.config(state='disabled')
 
     # bindings
+    combobox_select_col.bind("<<ComboboxSelected>>", select_col_selection)
+    combobox_interest_col.bind("<<ComboboxSelected>>", interest_col_selection)
     combobox_mode.bind("<<ComboboxSelected>>", mode_chosen)
-    combobox_class.bind("<<ComboboxSelected>>", class_chosen)
-    combobox_bare.bind("<<ComboboxSelected>>", mapping_classes)
-    combobox_vege.bind("<<ComboboxSelected>>", mapping_classes)
-
-    mode_window.wait_window()
-    return return_value[0]"""
 
 def menu_mode_choice_2(self, mode_window):
     def toggle_enabled(cbb:Combobox, lbls:list, value):

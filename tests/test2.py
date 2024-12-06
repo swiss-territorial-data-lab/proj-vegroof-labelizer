@@ -1,29 +1,46 @@
 import tkinter as tk
-from tkinter import Frame, Label
+from tkinter import ttk
 
+def set_widget_state(widget, state):
+    """
+    Recursively sets the state of all widgets within a parent widget.
+    
+    Args:
+        widget: The parent widget (e.g., a frame).
+        state: The desired state ("disabled" or "normal").
+    """
+    # Loop through all child widgets of the current widget
+    for child in widget.winfo_children():
+        # If the widget supports a 'state' attribute, set it
+        print(child)
+        if isinstance(child, (tk.Entry, tk.Button, ttk.Combobox, ttk.Checkbutton, ttk.Radiobutton, tk.Text)):
+            child.configure(state=state)
+        # If the widget is a container (e.g., Frame), recurse into it
+        elif isinstance(child, tk.Frame):
+            set_widget_state(child, state)
+
+# Example Usage
 root = tk.Tk()
+root.title("Recursive Disable Example")
 
 # Parent frame
-frame_select_col_mapping = Frame(root, width=400, height=200)
-frame_select_col_mapping.pack(padx=10, pady=10)
+parent_frame = tk.Frame(root, relief=tk.SUNKEN, borderwidth=2, padx=10, pady=10)
+parent_frame.pack(padx=20, pady=20)
 
-# Sub-frame
-frame_select_col_mapping_sub2 = Frame(frame_select_col_mapping, width=350, height=140)
-frame_select_col_mapping_sub2.pack()
-frame_select_col_mapping_sub2.pack_propagate(False)
+# Create nested frames with widgets
+for i in range(3):
+    sub_frame = tk.Frame(parent_frame, relief=tk.RIDGE, borderwidth=2, padx=5, pady=5)
+    sub_frame.pack(pady=10, fill="x")
+    tk.Label(sub_frame, text=f"Frame {i+1}").pack(side="left")
+    tk.Entry(sub_frame).pack(side="left", padx=5)
+    tk.Button(sub_frame, text="Click Me").pack(side="left", padx=5)
 
-for i in range(6):
-    # Child frame
-    new_frame = Frame(frame_select_col_mapping_sub2, width=350, height=20)
-    new_frame.pack(pady=5)
-    new_frame.pack_propagate(False)
+# Add a button to disable all widgets in the parent frame
+disable_button = tk.Button(root, text="Disable All", command=lambda: set_widget_state(parent_frame, "disabled"))
+disable_button.pack(pady=10)
 
-    # Label
-    new_lbl = Label(new_frame, text=f"Val {i}")
-    new_lbl.pack(side='left', padx=10)
-
-    # Text widget with fixed width and height
-    new_textbox = tk.Text(new_frame, width=30, height=1)  # Width in characters, height in lines
-    new_textbox.pack(side='left', padx=10)
+# Add a button to enable all widgets in the parent frame
+enable_button = tk.Button(root, text="Enable All", command=lambda: set_widget_state(parent_frame, "normal"))
+enable_button.pack(pady=10)
 
 root.mainloop()
