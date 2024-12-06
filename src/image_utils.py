@@ -25,7 +25,7 @@ def scale_geometry(geometry, xfact, yfact):
     
 
 def show_image(self):
-    if len(self.list_rasters_src) == 0 or len(self.roofs_to_show) == 0:
+    if len(self.list_rasters_src) == 0 or len(self.dataset_to_show) == 0:
         self.original_image = Image.open("./src/no_image.png").resize((self.img_width, self.img_height))
         self.display_image = self.original_image.copy()
         self.photo = ImageTk.PhotoImage(self.display_image)
@@ -34,12 +34,11 @@ def show_image(self):
         return
 
     # Get image from polygon and rasters
-    while self.label_to_class[self.roofs_to_show.iloc[self.roof_index][self.input_class_name]] not in self.shown_cat:
-        self.roof_index += 1
-    roof = self.roofs_to_show.iloc[self.roof_index]
-    self.egid = roof.EGID
-    cat = roof[self.input_class_name]
-    geometry = roof.geometry
+    while self.label_to_class[self.dataset_to_show.iloc[self.sample_index][self.input_class_name]] not in self.shown_cat:
+        self.sample_index += 1
+    sample = self.dataset_to_show.iloc[self.sample_index]
+    cat = sample[self.input_class_name]
+    geometry = sample.geometry
 
     # Define bounding box
     exterior_coords = []
@@ -98,7 +97,7 @@ def show_image(self):
         image = Image.open("./src/no_image.png").resize((self.img_width, self.img_height))
         self.photo = ImageTk.PhotoImage(image)
         self.image.config(image=self.photo)
-        self.title.config(text=str(int(self.egid)) + ' - ' + self.label_to_class[cat])
+        self.title.config(text=f"sample {self.sample_index} - {self.label_to_class[cat]}")
         return
     
     elif len(matching_rasters) == 1:
@@ -168,7 +167,7 @@ def show_image(self):
     self.display_image = self.original_image.copy()
     self.photo = ImageTk.PhotoImage(self.display_image)
     self.image_id = self.image.create_image(0, 0, anchor=tk.NW, image=self.photo)
-    self.title.config(text=str(int(self.egid)) + ' - ' + self.label_to_class[cat])
+    self.title.config(text=f"sample {self.sample_index} - {self.label_to_class[cat]}")
 
     # apply initial zoom
     self.initial_zoom = (max(deltax, deltay) + 2 * self.margin_around_image) / max(deltax, deltay)

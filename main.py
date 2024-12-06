@@ -4,7 +4,6 @@ from tkinter import Tk, Menu, Label, Button, Frame, font, filedialog, messagebox
 from tkinter import ttk
 from PIL import Image, ImageTk
 import numpy as np
-#import fiona # for .exe creation
 import geopandas as gpd
 import rasterio
 from rasterio.mask import mask
@@ -19,20 +18,20 @@ class ImageViewer:
         self.root = root
         self.polygon_path = ""
         self.raster_path = ""
-        self.roof_index = 0
-        self.num_roofs_to_show = 0
-        self.roofs = gpd.GeoDataFrame()
-        self.new_roofs = gpd.GeoDataFrame()
-        self.roofs_to_show = gpd.GeoDataFrame()
+        self.sample_index = 0
+        self.num_dataset_to_show = 0
+        self.dataset = gpd.GeoDataFrame()
+        self.new_dataset = gpd.GeoDataFrame()
+        self.dataset_to_show = gpd.GeoDataFrame()
         self.list_rasters_src = []
         self.changes_log = []
-        self.egid = 0
+        #self.id_sec = 0
         self.shown_cat = []
         self.shown_meta = []
         self.infos_files = {
             'Polygons loc': '-',
             'Rasters loc': '-',
-            'Roof shown': '0/0',
+            'sample shown': '0/0',
         }
 
         #   _ordering variables
@@ -41,6 +40,12 @@ class ImageViewer:
 
         self.label_to_class = {}
         self.class_to_label = {}
+        self.frac_col = ""
+        self.interest_col = ""
+        self.frac_col_lbl_to_val = {}
+        self.frac_col_val_to_lbl = {}
+        self.interest_col_lbl_to_val = {}
+        self.interest_col_val_to_lbl = {}
 
         self.metadata = {}
 
@@ -146,13 +151,13 @@ class ImageViewer:
         )
         self.infos_sample.place(x=540, y=120)
 
-        # set the roof index selector and tot roofs
-        label_roof_index_1 = Label(root, text="Go to sample : ", font=file_info_label_font, fg="#ecf0f1", bg="#2c3e50", anchor="center", justify="left")
-        label_roof_index_1.place(x=610, y=690)
-        self.roof_index_combobox = ttk.Combobox(root, values='-')
-        self.roof_index_combobox.set("0")  # Texte par défaut
-        self.roof_index_combobox.place(x=720,y=690, width=60)
-        self.roof_index_combobox.bind("<<ComboboxSelected>>", self.select_sample)
+        # set the sample index selector and tot dataset
+        label_sample_index_1 = Label(root, text="Go to sample : ", font=file_info_label_font, fg="#ecf0f1", bg="#2c3e50", anchor="center", justify="left")
+        label_sample_index_1.place(x=610, y=690)
+        self.sample_index_combobox = ttk.Combobox(root, values='-')
+        self.sample_index_combobox.set("0")  # Texte par défaut
+        self.sample_index_combobox.place(x=720,y=690, width=60)
+        self.sample_index_combobox.bind("<<ComboboxSelected>>", self.select_sample)
 
         # Set the frames of class buttons
         self.class_button_frame = Frame(root)
@@ -204,9 +209,9 @@ class ImageViewer:
         # temp-------------------
         """self.polygon_path = "D:/GitHubProjects/STDL_sample_labelizer/data/sources/inf_binary_LR_RF.gpkg"
         self.raster_path = "D:/GitHubProjects/STDL_sample_labelizer/data/sources/inference"
-        self.roofs = gpd.read_file(self.polygon_path)
-        self.new_roofs = gpd.read_file(self.polygon_path)
-        self.roofs_to_show = gpd.read_file(self.polygon_path)
+        self.dataset = gpd.read_file(self.polygon_path)
+        self.new_dataset = gpd.read_file(self.polygon_path)
+        self.dataset_to_show = gpd.read_file(self.polygon_path)
         for r, d, f in os.walk(self.raster_path):
                 for file in f:
                     if file.endswith('.tif'):
@@ -215,7 +220,7 @@ class ImageViewer:
                         self.list_rasters_src.append(file_src)
         self.mode = 'labelizer'
         self.input_class_name='pred'
-        self.shown_cat = list(self.new_roofs[self.input_class_name].unique())
+        self.shown_cat = list(self.new_dataset[self.input_class_name].unique())
         self.update_infos()"""
         # -----------------------
 
@@ -228,42 +233,42 @@ class ImageViewer:
         update_image(self)
 
     def show_next_image(self):
-        self.roof_index = (self.roof_index + 1) % len(self.roofs_to_show)  # Loop around
-        while self.label_to_class[self.roofs_to_show.iloc[self.roof_index][self.input_class_name]] not in self.shown_cat:
-            self.roof_index = (self.roof_index + 1) % len(self.roofs_to_show)  # Loop around
+        self.sample_index = (self.sample_index + 1) % len(self.dataset_to_show)  # Loop around
+        while self.label_to_class[self.dataset_to_show.iloc[self.sample_index][self.input_class_name]] not in self.shown_cat:
+            self.sample_index = (self.sample_index + 1) % len(self.dataset_to_show)  # Loop around
         show_image(self)
         self.update_infos()
 
     def show_previous_image(self):
-        self.roof_index = (self.roof_index - 1) % len(self.roofs_to_show)  # Loop around
-        while self.label_to_class[self.roofs_to_show.iloc[self.roof_index][self.input_class_name]] not in self.shown_cat:
-            self.roof_index = (self.roof_index - 1) % len(self.roofs_to_show)  # Loop around
+        self.sample_index = (self.sample_index - 1) % len(self.dataset_to_show)  # Loop around
+        while self.label_to_class[self.dataset_to_show.iloc[self.sample_index][self.input_class_name]] not in self.shown_cat:
+            self.sample_index = (self.sample_index - 1) % len(self.dataset_to_show)  # Loop around
         show_image(self)
         self.update_infos()
     
     def update_infos(self):
         # update files info
-        self.num_roofs_to_show = len(self.roofs_to_show)
-        self.infos_files['Roof shown'] = f'{self.roof_index + 1} / {self.num_roofs_to_show}'
+        self.num_dataset_to_show = len(self.dataset_to_show)
+        self.infos_files['sample shown'] = f'{self.sample_index + 1} / {self.num_dataset_to_show}'
         self.infos_files['Polygons loc'] = self.polygon_path.split('/')[-1] if self.polygon_path != None else '-'
         self.infos_files['Rasters loc'] = self.raster_path.split('/')[-1] if self.raster_path != None else '-'
         new_text = '\n'.join([key + ': ' + str(val) for key, val in self.infos_files.items()])
         self.label_infos_files.config(text=new_text)
 
         # security
-        if self.raster_path == "" or self.polygon_path == "" or len(self.roofs_to_show) == 0:
+        if self.raster_path == "" or self.polygon_path == "" or len(self.dataset_to_show) == 0:
             return
 
         # update metadata
         self.metadata = {}
         for meta in self.shown_meta:
-            self.metadata[meta] = self.roofs_to_show.loc[self.roofs_to_show.EGID == self.egid,meta].values[0]
+            self.metadata[meta] = self.dataset_to_show.loc[self.sample_index,meta].values[0]
         meta_text = '\n'.join([item[0] + ': ' + str(item[1]) for item in self.metadata.items()])
         self.infos_sample.config(text = meta_text if len(self.metadata) > 0 else '-')
 
         # update sample selector
-        self.roof_index_combobox.config(values=[str(x + 1) for x in range(self.num_roofs_to_show)])
-        self.roof_index_combobox.set(str(self.roof_index + 1))
+        self.sample_index_combobox.config(values=[str(x + 1) for x in range(self.num_dataset_to_show)])
+        self.sample_index_combobox.set(str(self.sample_index + 1))
 
         # update class buttons enabling-state
         map_class_to_button={
@@ -276,23 +281,23 @@ class ImageViewer:
         }
         cat = ""
         if self.mode == 'correcter':
-            cat = self.roofs_to_show.iloc[self.roof_index][self.input_class_name]
+            cat = self.dataset_to_show.iloc[self.sample_index][self.input_class_name]
         elif self.mode == 'labelizer':
-            cat = self.roofs_to_show.iloc[self.roof_index]['class']
+            cat = self.dataset_to_show.iloc[self.sample_index]['class']
         for key, button in map_class_to_button.items():
             if key == cat:
                 button.config(state='disabled')
             else:
                 button.config(state='enabled')
 
-        if self.roof_index == self.num_roofs_to_show - 1:
+        if self.sample_index == self.num_dataset_to_show - 1:
             messagebox.showinfo("informaton", "Last sample reached !")
 
     def change_category(self, cat):
-        self.new_roofs.loc[self.new_roofs['EGID'] == self.egid, 'class'] = cat
-        self.roofs_to_show.loc[self.roofs_to_show['EGID'] == self.egid, 'class'] = cat
+        self.new_dataset.loc[self.sample_index, 'class'] = cat
+        self.dataset_to_show.loc[self.sample_index, 'class'] = cat
         self.UnsavedChanges = True
-        self.changes_log.append(f"Changing category of {self.egid} to '{cat}'")
+        self.changes_log.append(f"Changing category of sample with index {self.sample_index} to '{cat}'")
 
         # update class buttons enabling-state
         map_class_to_button={
@@ -306,14 +311,14 @@ class ImageViewer:
         for key, [label, button] in map_class_to_button.items():
             if key == cat:
                 button.config(state='disabled')
-                self.title.config(text=str(int(self.egid)) + ' - ' + label)
+                self.title.config(text=f"sample {self.sample_index} - {label}")
             else:
                 button.config(state='normal')
         self.update_infos()
         #self.root.after(300, self.show_next_image)
         
     def select_sample(self, event):
-        self.roof_index = int(self.roof_index_combobox.get()) - 1
+        self.sample_index = int(self.sample_index_combobox.get()) - 1
         show_image(self)
         self.update_infos()
         
