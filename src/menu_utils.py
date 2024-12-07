@@ -31,40 +31,87 @@ def menu_mode_choice(self, mode_window):
             if do_select_col.get() == 1.0:
                 if combobox_select_col.get() == "Select":
                     messagebox.showwarning("warning", "Missing values!")
+                    mode_window.focus_set()
                     return
+
                 lst_values = list(self.new_dataset[combobox_select_col.get()].unique())
                 for idx, textbox in enumerate(lst_vals_select_col_lbl):
-                    if lst_vals_select_col_val[idx].cget('text') in lst_values and textbox.get() == "":
+                    if lst_vals_select_col_val[idx].cget('text') in lst_values and textbox.get("1.0", "end-1c") == "":
                         messagebox.showwarning("warning", "Missing values!")
+                        mode_window.focus_set()
                         return
-            if text_interest_col_create.get() == "":
+
+            if text_interest_col_create.get("1.0", "end-1c") == "":
                 messagebox.showwarning("warning", "Missing values!")
+                mode_window.focus_set()
                 return
+
+            no_interest_lbl = True
+            for textbox in lst_vals_interest_col_lbl:
+                if textbox.get("1.0", "end-1c") != "":
+                    no_interest_lbl = False
+                    break
+            if no_interest_lbl:
+                messagebox.showwarning("warning", "Missing values!")
+                mode_window.focus_set()
+                return
+
             for idx, textbox in enumerate(lst_vals_interest_col_lbl):
-                if textbox.get() != "":
-                    if lst_vals_interest_col_val.get() == "":
+                if textbox.get("1.0", "end-1c") != "":
+                    if lst_vals_interest_col_val[idx].get("1.0", "end-1c") == "":
                         messagebox.showwarning("warning", "Missing values!")
+                        mode_window.focus_set()
                         return
 
             # assign values
-            pass
+            if do_select_col.get() == 1.0:
+                self.frac_col = combobox_select_col.get()
+                for idx, textbox in enumerate(lst_vals_select_col_lbl):
+                    if textbox.get("1.0", "end-1c") != "":
+                        self.frac_col_val_to_lbl[lst_vals_select_col_val[idx].cget('text')] = textbox.get("1.0", "end-1c")
+                        self.frac_col_lbl_to_val[textbox.get("1.0", "end-1c")] = lst_vals_select_col_val[idx].cget('text')
+            
+            self.interest_col = text_interest_col_create.get("1.0", "end-1c")
+            for idx, textbox in enumerate(lst_vals_interest_col_lbl):
+                if textbox.get("1.0", "end-1c") != "" and lst_vals_interest_col_val[idx].get("1.0", "end-1c") != "":
+                    self.interest_col_val_to_lbl[lst_vals_interest_col_val[idx].get("1.0", "end-1c")] = textbox.get("1.0", "end-1c")
+                    self.interest_col_lbl_to_val[textbox.get("1.0", "end-1c")] = lst_vals_interest_col_val[idx].get("1.0", "end-1c")
+            self.mode = 'labelizer'
             
         elif combobox_mode.get() == 'correcter':
             # test if nothing missing
             if combobox_interest_col.get() == "Select":
                 messagebox.showwarning("warning", "Missing values!")
+                mode_window.focus_set()
                 return
-            lst_values = list(self.new_dataset[combobox_interest_col.get()].unique())
+            lst_values = [str(val) for val in list(self.new_dataset[combobox_interest_col.get()].unique())]
             for idx, textbox in enumerate(lst_vals_interest_col_val):
-                if textbox.get() in lst_values and lst_vals_interest_col_lbl.get() == "":
+                if textbox.get("1.0", "end-1c") in lst_values and lst_vals_interest_col_lbl[idx].get("1.0", "end-1c") == "":
                     messagebox.showwarning("warning", "Missing values!")
+                    mode_window.focus_set()
                     return
+
             # assign values
-            pass
+            self.interest_col = combobox_interest_col.get()
+            for idx, textbox in enumerate(lst_vals_interest_col_lbl):
+                if textbox.get("1.0", "end-1c") != "" and lst_vals_interest_col_val[idx].get("1.0", "end-1c") != "":
+                    self.interest_col_val_to_lbl[lst_vals_interest_col_val[idx].get("1.0", "end-1c")] = textbox.get("1.0", "end-1c")
+                    self.interest_col_lbl_to_val[textbox.get("1.0", "end-1c")] = lst_vals_interest_col_val[idx].get("1.0", "end-1c")
+            self.frac_col = self.interest_col
+            self.frac_col_val_to_lbl = self.interest_col_val_to_lbl.copy()
+            self.frac_col_lbl_to_val = self.interest_col_lbl_to_val.copy()
+            self.mode = 'correcter'
         else:
             messagebox.showwarning("warning", "Missing values!")
+            mode_window.focus_set()
+            return
 
-
+        print(self.frac_col)
+        print(self.interest_col)
+        print(self.frac_col_lbl_to_val)
+        print(self.frac_col_val_to_lbl)
+        print(self.interest_col_lbl_to_val)
+        print(self.interest_col_val_to_lbl)
 
 
         """pool_of_multi_labels = {'b':'bare', 't':'terrace', 's':'spontaneous', 'e':'extensive', 'l':'lawn', 'i':'intensive'}
@@ -98,9 +145,9 @@ def menu_mode_choice(self, mode_window):
             toggle_selection_frame(frame_select_col_header, 'normal')
             combobox_interest_col.set('Select')
             for i in range(6):
-                lst_vals_interest_col_val[i].delete("1.0", tk.END)
+                lst_vals_interest_col_val[i].delete("1.0", "end-1c")
                 lst_vals_interest_col_val[i].insert("1.0", f"Val {i}")
-                lst_vals_interest_col_lbl[i].delete("1.0", tk.END)
+                lst_vals_interest_col_lbl[i].delete("1.0", "end-1c")
             toggle_selection_frame(frame_interest_col_mapping_sub11 ,'disabled')
             toggle_selection_frame(frame_select_col_mapping ,'disabled')
         else:   # if 'correcter'
@@ -109,13 +156,13 @@ def menu_mode_choice(self, mode_window):
             combobox_interest_col.set('Select')
             for i in range(6):
                 lst_vals_select_col_val[i].config(text=f"Val {i}", foreground='light grey')
-                lst_vals_select_col_lbl[i].delete("1.0", tk.END)
-            text_interest_col_create.delete("1.0",tk.END)
+                lst_vals_select_col_lbl[i].delete("1.0", "end-1c")
+            text_interest_col_create.delete("1.0","end-1c")
             for i in range(6):
-                lst_vals_interest_col_val[i].delete("1.0", tk.END)
+                lst_vals_interest_col_val[i].delete("1.0", "end-1c")
                 lst_vals_interest_col_val[i].insert("1.0", f"Val {i}")
                 lst_vals_interest_col_val[i].config(foreground='light grey')
-                lst_vals_interest_col_lbl[i].delete("1.0", tk.END)
+                lst_vals_interest_col_lbl[i].delete("1.0", "end-1c")
             toggle_selection_frame(frame_select_col_header, 'disabled')
             toggle_selection_frame(frame_interest_col_mapping_sub2, 'disabled')
             toggle_selection_frame(frame_interest_col_mapping_sub11 ,'normal')
@@ -191,7 +238,7 @@ def menu_mode_choice(self, mode_window):
         self.frac_col_val_to_lbl = {val:"" for val in lst_values}
         for i in range(6):
             lst_vals_select_col_val[i].config(text=f"Val {i}")
-            lst_vals_select_col_lbl[i].delete("1.0", tk.END)
+            lst_vals_select_col_lbl[i].delete("1.0", "end-1c")
         for idx, value in enumerate(lst_values):
             lst_vals_select_col_val[idx].config(text=value)
         for i in np.arange(len(lst_values), 6):
@@ -208,14 +255,13 @@ def menu_mode_choice(self, mode_window):
             mode_window.focus_set()
             return
         toggle_selection_frame(frame_interest_col_mapping_sub2, 'normal')
-        self.interest_col = select_col
-        self.interest_col_val_to_lbl = {val:"" for val in lst_values}
+        
         for i in range(6):
-            lst_vals_interest_col_val[i].delete("1.0", tk.END)
+            lst_vals_interest_col_val[i].delete("1.0", "end-1c")
             lst_vals_interest_col_val[i].insert('1.0', f"Val {i}")
-            lst_vals_interest_col_lbl[i].delete("1.0", tk.END)
+            lst_vals_interest_col_lbl[i].delete("1.0", "end-1c")
         for idx, value in enumerate(lst_values):
-            lst_vals_interest_col_val[idx].delete("1.0", tk.END)
+            lst_vals_interest_col_val[idx].delete("1.0", "end-1c")
             lst_vals_interest_col_val[idx].insert("1.0", value)
             lst_vals_interest_col_val[idx].config(state='disabled')
         mode = combobox_mode.get()
