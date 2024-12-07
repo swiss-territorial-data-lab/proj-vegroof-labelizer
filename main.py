@@ -249,11 +249,22 @@ class ImageViewer:
     def update_infos(self):
         # update files info
         self.num_dataset_to_show = len(self.dataset_to_show)
-        self.infos_files['sample shown'] = f'{self.sample_index + 1} / {self.num_dataset_to_show}'
+        index_pos = self.dataset_to_show.index.get_loc(self.sample_index)
+        self.infos_files['sample shown'] = f'{min([index_pos + 1, self.num_dataset_to_show])} / {self.num_dataset_to_show}'
         self.infos_files['Polygons loc'] = self.polygon_path.split('/')[-1] if self.polygon_path != None else '-'
         self.infos_files['Rasters loc'] = self.raster_path.split('/')[-1] if self.raster_path != None else '-'
         new_text = '\n'.join([key + ': ' + str(val) for key, val in self.infos_files.items()])
         self.label_infos_files.config(text=new_text)
+
+        # update navigation buttons
+        if self.num_dataset_to_show == 0:
+            self.next_button.config(state='disabled')
+            self.prev_button.config(state='disabled')
+            self.removeSample_button.config(state='disabled')
+        else:
+            self.next_button.config(state='normal')
+            self.prev_button.config(state='normal')
+            self.removeSample_button.config(state='normal')
 
         # security
         if self.raster_path == "" or self.polygon_path == "" or len(self.dataset_to_show) == 0:

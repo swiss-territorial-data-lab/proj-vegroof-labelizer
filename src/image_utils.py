@@ -97,7 +97,8 @@ def show_image(self):
         image = Image.open("./src/no_image.png").resize((self.img_width, self.img_height))
         self.photo = ImageTk.PhotoImage(image)
         self.image.config(image=self.photo)
-        self.title.config(text=f"sample {self.sample_index} - {self.frac_col_val_to_lbl[cat]}")
+        #self.title.config(text=f"sample {self.sample_index} - {self.frac_col_val_to_lbl[cat]}")
+        self.title.config(text=f"{self.frac_col_val_to_lbl[cat]}")
         return
     
     elif len(matching_rasters) == 1:
@@ -169,11 +170,13 @@ def show_image(self):
     self.image_id = self.image.create_image(0, 0, anchor=tk.NW, image=self.photo)
     self.title.config(text=f"sample {self.sample_index} - {self.frac_col_val_to_lbl[cat]}")
 
+
     # apply initial zoom
     self.initial_zoom = (max(deltax, deltay) + 2 * self.margin_around_image) / max(deltax, deltay)
     self.current_zoom = self.initial_zoom / 1.1
     self.update_image()
 
+    plt.close()
 
 def zoom(self, event):
     # Adjust zoom level based on scroll direction

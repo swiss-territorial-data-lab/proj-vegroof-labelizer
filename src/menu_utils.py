@@ -29,6 +29,14 @@ def menu_mode_choice(self, mode_window):
                         messagebox.showwarning("warning", "Missing values!")
                         mode_window.focus_set()
                         return
+                    
+                lst_labels = [textbox.get("1.0", "end-1c") for textbox in lst_vals_select_col_lbl if textbox.get("1.0", "end-1c") != ""]
+                if len(lst_labels) > len(set(lst_labels)):
+                        messagebox.showwarning("warning", "Duplicate values in select column's labels!")
+                        mode_window.focus_set()
+                        return
+                    
+                
 
             if text_interest_col_create.get("1.0", "end-1c") == "":
                 messagebox.showwarning("warning", "Missing values!")
@@ -50,7 +58,19 @@ def menu_mode_choice(self, mode_window):
                     if lst_vals_interest_col_val[idx].get("1.0", "end-1c") == "":
                         messagebox.showwarning("warning", "Missing values!")
                         mode_window.focus_set()
-                        return
+                        return                    
+            lst_labels = [textbox.get("1.0", "end-1c") for textbox in lst_vals_interest_col_lbl if textbox.get("1.0", "end-1c") != ""]
+            if len(lst_labels) > len(set(lst_labels)):
+                    messagebox.showwarning("warning", "Duplicate values in interest column's labels!")
+                    mode_window.focus_set()
+                    return                    
+            lst_vals = [textbox.get("1.0", "end-1c") for textbox in lst_vals_interest_col_val if textbox.get("1.0", "end-1c") != ""]
+            if len(lst_vals) > len(set(lst_vals)):
+                    messagebox.showwarning("warning", "Duplicate values in interest column's values!")
+                    mode_window.focus_set()
+                    return
+            
+            
 
             # assign values
             if do_select_col.get() == 1.0:
@@ -79,7 +99,13 @@ def menu_mode_choice(self, mode_window):
                     messagebox.showwarning("warning", "Missing values!")
                     mode_window.focus_set()
                     return
-
+                    
+            lst_labels = [textbox.get("1.0", "end-1c") for textbox in lst_vals_interest_col_lbl if textbox.get("1.0", "end-1c") != ""]
+            if len(lst_labels) > len(set(lst_labels)):
+                    messagebox.showwarning("warning", "Duplicate values in interest column's labels!")
+                    mode_window.focus_set()
+                    return
+            
             # assign values
             self.interest_col = combobox_interest_col.get()
             for idx, textbox in enumerate(lst_vals_interest_col_lbl):
@@ -328,6 +354,7 @@ def menu_mode_choice(self, mode_window):
 
     mode_window.wait_window()
     return return_value[0]
+
 
 def menu_mode_choice_2(self, mode_window):
     def toggle_enabled(cbb:Combobox, lbls:list, value):
@@ -776,12 +803,17 @@ def open_list_cat(self):
         checked_items = tree.get_checked()
         checked_texts = [str(tree.item(item, "text")) for item in checked_items]
         self.shown_cat = checked_texts
-        shown_cat_keys = [key for key,val in self.frac_col_lbl_to_val.items() if val in self.shown_cat]
-        self.dataset_to_show = self.new_dataset.loc[self.new_dataset[self.frac_col].isin(shown_cat_keys)]
-        self.num_dataset_to_show = len(self.dataset_to_show)
-        self.sample_index = 0
-        self.show_image()
-        self.update_infos()
+        shown_cat_keys = [key for key,val in self.frac_col_val_to_lbl.items() if val in self.shown_cat]
+        indexes = self.new_dataset.loc[self.new_dataset[self.frac_col].astype('string').isin(shown_cat_keys)].index
+        self.dataset_to_show = self.new_dataset.loc[indexes]
+        #self.num_dataset_to_show = len(self.dataset_to_show)
+        #self.sample_index = 0
+        # keep current or go to next
+        if self.frac_col_val_to_lbl[self.dataset_to_show.loc[self.index, self.frac_col]].isin(self.cat_to_show):
+            self.show_image()
+            self.update_infos()
+        else:
+            self.show_next_image()
         window.destroy()
 
     # Retrieve categories from dataset
@@ -810,12 +842,12 @@ def open_list_cat(self):
     tree.pack(side="left", fill="both", expand=True)
 
     # Add sample items to the CheckboxTreeview
-    for cat in list(self.frac_col_lbl_to_val.keys()):
-        if self.frac_col_lbl_to_val[cat] in self.shown_cat:
+    for lbl in self.frac_col_lbl_to_val.keys():
+        if lbl in self.shown_cat:
             tag =('checked')
         else:
             tag = ('unchecked')
-        tree.insert("", "end", text=self.frac_col_lbl_to_val[cat], tags = tag)
+        tree.insert("", "end", text=lbl, tags = tag)
 
     # Add a vertical scrollbar and link it to the CheckboxTreeview
     scrollbar = ttk.Scrollbar(frame_scrollable, orient="vertical", command=tree.yview)
@@ -900,7 +932,6 @@ def remove_sample(self):
 
     self.new_dataset = self.new_dataset.drop(self.sample_index, axis=0)
 
-    self.sample_index -= 1
     self.show_next_image()
     self.UnsavedChanges = True
 
