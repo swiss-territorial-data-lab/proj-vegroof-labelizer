@@ -38,8 +38,8 @@ class ImageViewer:
         self.order_var = None
         self.order_asc = True
 
-        self.label_to_class = {}
-        self.class_to_label = {}
+        #self.frac_col_lbl_to_val = {}
+        #self.class_to_label = {}
         self.frac_col = ""
         self.interest_col = ""
         self.frac_col_lbl_to_val = {}
@@ -50,7 +50,7 @@ class ImageViewer:
         self.metadata = {}
 
         #   _input variables
-        self.input_class_name = ""
+        #self.frac_col = ""
         self.mode = ""
         #self.input_bin_class_values = {}
 
@@ -219,8 +219,8 @@ class ImageViewer:
                         file_src = file_src.replace('\\','/')
                         self.list_rasters_src.append(file_src)
         self.mode = 'labelizer'
-        self.input_class_name='pred'
-        self.shown_cat = list(self.new_dataset[self.input_class_name].unique())
+        self.frac_col='pred'
+        self.shown_cat = list(self.new_dataset[self.frac_col].unique())
         self.update_infos()"""
         # -----------------------
 
@@ -234,14 +234,14 @@ class ImageViewer:
 
     def show_next_image(self):
         self.sample_index = (self.sample_index + 1) % len(self.dataset_to_show)  # Loop around
-        while self.label_to_class[self.dataset_to_show.iloc[self.sample_index][self.input_class_name]] not in self.shown_cat:
+        while self.frac_col_val_to_lbl[str(self.dataset_to_show.iloc[self.sample_index][self.frac_col])] not in self.shown_cat:
             self.sample_index = (self.sample_index + 1) % len(self.dataset_to_show)  # Loop around
         show_image(self)
         self.update_infos()
 
     def show_previous_image(self):
         self.sample_index = (self.sample_index - 1) % len(self.dataset_to_show)  # Loop around
-        while self.label_to_class[self.dataset_to_show.iloc[self.sample_index][self.input_class_name]] not in self.shown_cat:
+        while self.frac_col_val_to_lbl[str(self.dataset_to_show.iloc[self.sample_index][self.frac_col])] not in self.shown_cat:
             self.sample_index = (self.sample_index - 1) % len(self.dataset_to_show)  # Loop around
         show_image(self)
         self.update_infos()
@@ -262,7 +262,7 @@ class ImageViewer:
         # update metadata
         self.metadata = {}
         for meta in self.shown_meta:
-            self.metadata[meta] = self.dataset_to_show.loc[self.sample_index,meta].values[0]
+            self.metadata[meta] = str(self.dataset_to_show.loc[self.sample_index,meta])
         meta_text = '\n'.join([item[0] + ': ' + str(item[1]) for item in self.metadata.items()])
         self.infos_sample.config(text = meta_text if len(self.metadata) > 0 else '-')
 
@@ -281,7 +281,7 @@ class ImageViewer:
         }
         cat = ""
         if self.mode == 'correcter':
-            cat = self.dataset_to_show.iloc[self.sample_index][self.input_class_name]
+            cat = self.dataset_to_show.iloc[self.sample_index][self.frac_col]
         elif self.mode == 'labelizer':
             cat = self.dataset_to_show.iloc[self.sample_index]['class']
         for key, button in map_class_to_button.items():

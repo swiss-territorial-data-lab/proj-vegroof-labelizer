@@ -14,17 +14,6 @@ from src.processing import show_confusion_matrix
 
 
 def menu_mode_choice(self, mode_window):
-    def toggle_enabled(cbb:Combobox, lbls:list, value):
-        cbb.config(state=value)
-        if cbb['state'] == 'enabled':
-            cbb.configure(foreground='black')
-            for lbl in lbls:
-                lbl.config(fg='black')
-        else:
-            cbb.configure(foreground='light grey')
-            for lbl in lbls:
-                lbl.config(fg='light grey')
-
     def ok_button_pressed(return_value):
         if combobox_mode.get() == 'labelizer':
             # test if nothing missing
@@ -68,14 +57,14 @@ def menu_mode_choice(self, mode_window):
                 self.frac_col = combobox_select_col.get()
                 for idx, textbox in enumerate(lst_vals_select_col_lbl):
                     if textbox.get("1.0", "end-1c") != "":
-                        self.frac_col_val_to_lbl[lst_vals_select_col_val[idx].cget('text')] = textbox.get("1.0", "end-1c")
-                        self.frac_col_lbl_to_val[textbox.get("1.0", "end-1c")] = lst_vals_select_col_val[idx].cget('text')
+                        self.frac_col_val_to_lbl[str(lst_vals_select_col_val[idx].cget('text'))] = str(textbox.get("1.0", "end-1c"))
+                        self.frac_col_lbl_to_val[str(textbox.get("1.0", "end-1c"))] = str(lst_vals_select_col_val[idx].cget('text'))
             
             self.interest_col = text_interest_col_create.get("1.0", "end-1c")
             for idx, textbox in enumerate(lst_vals_interest_col_lbl):
                 if textbox.get("1.0", "end-1c") != "" and lst_vals_interest_col_val[idx].get("1.0", "end-1c") != "":
-                    self.interest_col_val_to_lbl[lst_vals_interest_col_val[idx].get("1.0", "end-1c")] = textbox.get("1.0", "end-1c")
-                    self.interest_col_lbl_to_val[textbox.get("1.0", "end-1c")] = lst_vals_interest_col_val[idx].get("1.0", "end-1c")
+                    self.interest_col_val_to_lbl[str(lst_vals_interest_col_val[idx].get("1.0", "end-1c"))] = str(textbox.get("1.0", "end-1c"))
+                    self.interest_col_lbl_to_val[str(textbox.get("1.0", "end-1c"))] = str(lst_vals_interest_col_val[idx].get("1.0", "end-1c"))
             self.mode = 'labelizer'
             
         elif combobox_mode.get() == 'correcter':
@@ -95,8 +84,8 @@ def menu_mode_choice(self, mode_window):
             self.interest_col = combobox_interest_col.get()
             for idx, textbox in enumerate(lst_vals_interest_col_lbl):
                 if textbox.get("1.0", "end-1c") != "" and lst_vals_interest_col_val[idx].get("1.0", "end-1c") != "":
-                    self.interest_col_val_to_lbl[lst_vals_interest_col_val[idx].get("1.0", "end-1c")] = textbox.get("1.0", "end-1c")
-                    self.interest_col_lbl_to_val[textbox.get("1.0", "end-1c")] = lst_vals_interest_col_val[idx].get("1.0", "end-1c")
+                    self.interest_col_val_to_lbl[str(lst_vals_interest_col_val[idx].get("1.0", "end-1c"))] = str(textbox.get("1.0", "end-1c"))
+                    self.interest_col_lbl_to_val[str(textbox.get("1.0", "end-1c"))] = str(lst_vals_interest_col_val[idx].get("1.0", "end-1c"))
             self.frac_col = self.interest_col
             self.frac_col_val_to_lbl = self.interest_col_val_to_lbl.copy()
             self.frac_col_lbl_to_val = self.interest_col_lbl_to_val.copy()
@@ -106,37 +95,11 @@ def menu_mode_choice(self, mode_window):
             mode_window.focus_set()
             return
 
-        print(self.frac_col)
-        print(self.interest_col)
-        print(self.frac_col_lbl_to_val)
-        print(self.frac_col_val_to_lbl)
-        print(self.interest_col_lbl_to_val)
-        print(self.interest_col_val_to_lbl)
-
-
-        """pool_of_multi_labels = {'b':'bare', 't':'terrace', 's':'spontaneous', 'e':'extensive', 'l':'lawn', 'i':'intensive'}
-        if combobox_mode.get() != 'Select and option' and combobox_class != 'Select an option':
-            self.mode = combobox_mode.get()
-            self.input_class_name = combobox_class.get()
-            self.new_dataset[self.input_class_name] = self.new_dataset[self.input_class_name].astype('string')
-            if combobox_bare.get() != '-' and combobox_vege.get() != '-' and self.mode == 'labelizer':
-                self.label_to_class = {
-                    combobox_bare.get(): 'bare',
-                    combobox_vege.get(): 'vegetated',
-                }
-                self.class_to_label = {val:key for key,val in self.label_to_class.items()}
-            elif self.mode == 'correcter':
-                self.label_to_class = {x:y for x,y in pool_of_multi_labels.items() if x in self.new_dataset[self.input_class_name].unique()}
-                self.class_to_label = {val:key for key,val in self.label_to_class.items()}
-            else:
-                mode_window.destroy()
-                return
-            
-            self.new_dataset = self.new_dataset.loc[self.new_dataset[self.input_class_name].isin(list(self.label_to_class.keys()))]
-            
-            self.shown_cat = list(self.label_to_class.values())
-            return_value[0] = True
-            mode_window.destroy()"""
+        #self.new_dataset = self.new_dataset.loc[self.new_dataset[self.frac_col].isin(list(self.frac_col_lbl_to_val.keys()))]
+        self.shown_cat = [str(val) for val in self.frac_col_val_to_lbl.values()]
+        self.num_dataset_to_show = len(self.new_dataset)
+        return_value[0] = True
+        mode_window.destroy()
     
     def mode_chosen(event):
         mode = combobox_mode.get()
@@ -169,42 +132,6 @@ def menu_mode_choice(self, mode_window):
             toggle_selection_frame(frame_interest_col_mapping_sub12 ,'disabled')
             toggle_selection_frame(frame_select_col_mapping ,'disabled')
             
-    def class_chosen(event):  
-        class_name = combobox_class.get()
-        class_values = list(self.new_dataset[class_name].unique())
-        mode = combobox_mode.get()
-
-        if mode == 'labelizer':
-            if len(class_values) > 2:
-                messagebox.showwarning("warning", "The number of different values is greater than 2. After choosing the one corresponding to bare and vegetation samples, the samples with other values will be dismissed!")
-                mode_window.focus_set()
-
-            # set mapping
-            combobox_bare.config(state='enabled', values=class_values)
-            combobox_vege.config(state='enabled', values=class_values)
-            toggle_enabled(combobox_bare, [lbl_mapping, lbl_bare], 'enabled')
-            toggle_enabled(combobox_vege, [lbl_vege], 'enabled')
-        elif mode == 'correcter':
-            pool_of_multi_labels = set(['b', 't', 's', 'e', 'l', 'i'])
-            if set(class_values).intersection(pool_of_multi_labels) == set([]):
-                messagebox.showerror("error", "The values of the class don't match the ones for multi class!")
-                mode_window.focus_set()
-                return
-            elif set(class_values).intersection(pool_of_multi_labels) != set(class_values):
-                messagebox.showwarning("error", "Some of the values of the class don't match the ones for multi class! Cooresponding samples will not be kept")
-                mode_window.focus_set()
-            ok_button.config(state='enabled')
-        else:
-            print('no class name selected!')
-
-    def mapping_classes(event):
-        bare_value = combobox_bare.get()
-        vege_value = combobox_vege.get()
-        if bare_value != '-' and vege_value != '-' and bare_value != vege_value:
-            ok_button.config(state='enabled')
-        else:
-            ok_button.config(state='disabled')
-    
     def checkbox_selection_col():
         if do_select_col.get() == 0:
             toggle_selection_frame(frame_select_col_mapping_sub1, 'disabled')
@@ -244,7 +171,6 @@ def menu_mode_choice(self, mode_window):
         for i in np.arange(len(lst_values), 6):
             lst_vals_select_col_val[i].config(foreground='light grey', state='disabled')
             lst_vals_select_col_lbl[i].config(state='disabled')
-
 
     def interest_col_selection(event):
         select_col = combobox_interest_col.get()
@@ -400,6 +326,9 @@ def menu_mode_choice(self, mode_window):
     combobox_interest_col.bind("<<ComboboxSelected>>", interest_col_selection)
     combobox_mode.bind("<<ComboboxSelected>>", mode_chosen)
 
+    mode_window.wait_window()
+    return return_value[0]
+
 def menu_mode_choice_2(self, mode_window):
     def toggle_enabled(cbb:Combobox, lbls:list, value):
         cbb.config(state=value)
@@ -416,24 +345,24 @@ def menu_mode_choice_2(self, mode_window):
         pool_of_multi_labels = {'b':'bare', 't':'terrace', 's':'spontaneous', 'e':'extensive', 'l':'lawn', 'i':'intensive'}
         if combobox_mode.get() != 'Select and option' and combobox_class != 'Select an option':
             self.mode = combobox_mode.get()
-            self.input_class_name = combobox_class.get()
-            self.new_dataset[self.input_class_name] = self.new_dataset[self.input_class_name].astype('string')
+            self.frac_col = combobox_class.get()
+            self.new_dataset[self.frac_col] = self.new_dataset[self.frac_col].astype('string')
             if combobox_bare.get() != '-' and combobox_vege.get() != '-' and self.mode == 'labelizer':
-                self.label_to_class = {
+                self.frac_col_lbl_to_val = {
                     combobox_bare.get(): 'bare',
                     combobox_vege.get(): 'vegetated',
                 }
-                self.class_to_label = {val:key for key,val in self.label_to_class.items()}
+                self.class_to_label = {val:key for key,val in self.frac_col_lbl_to_val.items()}
             elif self.mode == 'correcter':
-                self.label_to_class = {x:y for x,y in pool_of_multi_labels.items() if x in self.new_dataset[self.input_class_name].unique()}
-                self.class_to_label = {val:key for key,val in self.label_to_class.items()}
+                self.frac_col_lbl_to_val = {x:y for x,y in pool_of_multi_labels.items() if x in self.new_dataset[self.frac_col].unique()}
+                self.class_to_label = {val:key for key,val in self.frac_col_lbl_to_val.items()}
             else:
                 mode_window.destroy()
                 return
             
-            self.new_dataset = self.new_dataset.loc[self.new_dataset[self.input_class_name].isin(list(self.label_to_class.keys()))]
+            self.new_dataset = self.new_dataset.loc[self.new_dataset[self.frac_col].isin(list(self.frac_col_lbl_to_val.keys()))]
             
-            self.shown_cat = list(self.label_to_class.values())
+            self.shown_cat = [str(val) for val in self.frac_col_lbl_to_val.values()]
             return_value[0] = True
             mode_window.destroy()
     
@@ -600,9 +529,12 @@ def load(self, mode=0):
                         self.shown_meta = dict_save['shown_meta']
                         self.list_rasters_src = dict_save['list_rasters_src']
                         self.mode = dict_save['mode']
-                        self.input_class_name = dict_save['input_class_name']
-                        self.label_to_class = dict_save['label_to_class']
-                        self.class_to_label = dict_save['class_to_label']
+                        self.frac_col = dict_save['frac_col']
+                        self.interest_col = dict_save['interest_col']
+                        self.frac_col_lbl_to_val = dict_save['frac_col_lbl_to_val']
+                        self.frac_col_val_to_lbl = dict_save['frac_col_val_to_lbl']
+                        self.interest_col_lbl_to_val = dict_save['interest_col_lbl_to_val']
+                        self.interest_col_val_to_lbl = dict_save['interest_col_val_to_lbl']
                         self.changes_log = dict_save['changes_log']
                     except Exception as e:
                         print("An error occured. The save file \"save_file.pkl\" must be absent or corrupted.")
@@ -626,12 +558,12 @@ def load(self, mode=0):
             
             # continue to process input polygons
             if self.mode == 'labelizer':
-                self.new_dataset.rename(columns={self.input_class_name:'class_binary'}, inplace=True)
-                self.input_class_name = 'class_binary'
+                """self.new_dataset.rename(columns={self.frac_col:'class_binary'}, inplace=True)
+                self.frac_col = 'class_binary'
                 self.new_dataset.class_binary = self.new_dataset.class_binary.astype('string')
-                for cat, val in self.label_to_class.items():
-                    self.new_dataset.loc[self.new_dataset.class_binary == str(val), 'class_binary'] = str(cat)
-                self.new_dataset['class'] = ""
+                for cat, val in self.frac_col_lbl_to_val.items():
+                    self.new_dataset.loc[self.new_dataset.class_binary == str(val), 'class_binary'] = str(cat)"""
+                self.new_dataset[self.interest_col] = ""
             self.dataset_to_show = self.new_dataset.copy()
 
     # load rasters
@@ -660,7 +592,7 @@ def load(self, mode=0):
 
         if save_path != "":
             try:
-                with open(os.path.join(save_path), 'rb') as in_file:
+                with open(os.path.join(new_polygon_path, 'save_file.pkl'), 'rb') as in_file:
                     dict_save = pickle.load(in_file)
                 self.polygon_path = dict_save['polygon_path']
                 self.raster_path = dict_save['raster_path']
@@ -672,15 +604,18 @@ def load(self, mode=0):
                 self.shown_meta = dict_save['shown_meta']
                 self.list_rasters_src = dict_save['list_rasters_src']
                 self.mode = dict_save['mode']
-                self.input_class_name = dict_save['input_class_name']
-                self.label_to_class = dict_save['label_to_class']
-                self.class_to_label = dict_save['class_to_label']
+                self.frac_col = dict_save['frac_col']
+                self.interest_col = dict_save['interest_col']
+                self.frac_col_lbl_to_val = dict_save['frac_col_lbl_to_val']
+                self.frac_col_val_to_lbl = dict_save['frac_col_val_to_lbl']
+                self.interest_col_lbl_to_val = dict_save['interest_col_lbl_to_val']
+                self.interest_col_val_to_lbl = dict_save['interest_col_val_to_lbl']
                 self.changes_log = dict_save['changes_log']
-                self.show_image()
-                self.update_infos()
             except Exception as e:
                 print("An error occured. The save file \"save_file.pkl\" must be absent or corrupted.")
                 print(f"Original error: {e}")
+            self.show_image()
+            self.update_infos()
             return
     
 
@@ -732,9 +667,12 @@ def save(self):
             'shown_meta': self.shown_meta,
             'list_rasters_src': self.list_rasters_src,
             'mode': self.mode,
-            'input_class_name': self.input_class_name,
-            'label_to_class': self.label_to_class,
-            'class_to_label': self.class_to_label,
+            'frac_col': self.frac_col,
+            'interest_col': self.interest_col,
+            'frac_col_lbl_to_val': self.frac_col_lbl_to_val,
+            'frac_col_val_to_lbl': self.frac_col_val_to_lbl,
+            'interest_col_lbl_to_val': self.interest_col_lbl_to_val,
+            'interest_col_val_to_lbl': self.interest_col_val_to_lbl,
             'changes_log': self.changes_log,
         }
         with open(os.path.join(new_polygon_path, 'save_file.pkl'),'wb') as out_file:
@@ -756,7 +694,7 @@ def save(self):
                 y_pred=pred,
                 y_true=true,
                 target_src=os.path.join(new_polygon_path, 'performances.png'),
-                class_labels=self.label_to_class.values(),
+                class_labels=self.frac_col_lbl_to_val.values(),
                 title="Performances",
                 do_save=True,
                 do_show=False,
@@ -836,10 +774,10 @@ def order(self):
 def open_list_cat(self):
     def ok_button_pressed(window, tree):
         checked_items = tree.get_checked()
-        checked_texts = [tree.item(item, "text") for item in checked_items]
+        checked_texts = [str(tree.item(item, "text")) for item in checked_items]
         self.shown_cat = checked_texts
-        shown_cat_keys = [key for key,val in self.label_to_class.items() if val in self.shown_cat]
-        self.dataset_to_show = self.new_dataset.loc[self.new_dataset[self.input_class_name].isin(shown_cat_keys)]
+        shown_cat_keys = [key for key,val in self.frac_col_lbl_to_val.items() if val in self.shown_cat]
+        self.dataset_to_show = self.new_dataset.loc[self.new_dataset[self.frac_col].isin(shown_cat_keys)]
         self.num_dataset_to_show = len(self.dataset_to_show)
         self.sample_index = 0
         self.show_image()
@@ -872,12 +810,12 @@ def open_list_cat(self):
     tree.pack(side="left", fill="both", expand=True)
 
     # Add sample items to the CheckboxTreeview
-    for cat in list(self.label_to_class.keys()):
-        if self.label_to_class[cat] in self.shown_cat:
+    for cat in list(self.frac_col_lbl_to_val.keys()):
+        if self.frac_col_lbl_to_val[cat] in self.shown_cat:
             tag =('checked')
         else:
             tag = ('unchecked')
-        tree.insert("", "end", text=self.label_to_class[cat], tags = tag)
+        tree.insert("", "end", text=self.frac_col_lbl_to_val[cat], tags = tag)
 
     # Add a vertical scrollbar and link it to the CheckboxTreeview
     scrollbar = ttk.Scrollbar(frame_scrollable, orient="vertical", command=tree.yview)
