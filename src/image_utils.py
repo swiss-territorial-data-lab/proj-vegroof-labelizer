@@ -34,8 +34,10 @@ def show_image(self):
         return
 
     # Get image from polygon and rasters
+    while  self.sample_index not in list(self.dataset_to_show.index):
+        self.sample_index = (self.sample_index + 1) % len(self.dataset_to_show)  # Loop around
     while self.frac_col_val_to_lbl[str(self.dataset_to_show.loc[self.sample_index, self.frac_col])] not in self.shown_cat:
-        self.sample_index += 1
+        self.sample_index = (self.sample_index + 1) % len(self.dataset_to_show)  # Loop around
     sample = self.dataset_to_show.iloc[self.sample_index]
     cat = sample[self.frac_col]
     geometry = sample.geometry
@@ -94,11 +96,15 @@ def show_image(self):
 
     # Test if polygon match with one or multiple rasters:    
     if len(matching_rasters) == 0:
-        image = Image.open("./src/no_image.png").resize((self.img_width, self.img_height))
+        self.original_image = Image.open("./src/no_image.png").resize((self.img_width, self.img_height))
+        self.display_image = self.original_image.copy()
+        self.photo = ImageTk.PhotoImage(self.display_image)
+        self.image_id = self.image.create_image(0, 0, anchor=tk.NW, image=self.photo)
+        """image = Image.open("./src/no_image.png").resize((self.img_width, self.img_height))
         self.photo = ImageTk.PhotoImage(image)
         self.image.config(image=self.photo)
-        #self.title.config(text=f"sample {self.sample_index} - {self.frac_col_val_to_lbl[cat]}")
-        self.title.config(text=f"{self.frac_col_val_to_lbl[str(cat)]}")
+        #self.title.config(text=f"sample {self.sample_index} - {self.frac_col_val_to_lbl[cat]}")"""
+        #self.title.config(text=f"{self.frac_col_val_to_lbl[str(cat)]}")
         return
     
     elif len(matching_rasters) == 1:

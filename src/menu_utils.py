@@ -113,8 +113,8 @@ def menu_mode_choice(self, mode_window):
                     self.interest_col_val_to_lbl[lst_values[idx]] = str(textbox.get("1.0", "end-1c"))
                     self.interest_col_lbl_to_val[str(textbox.get("1.0", "end-1c"))] = lst_values[idx]
             self.frac_col = self.interest_col
-            self.frac_col_val_to_lbl = self.interest_col_val_to_lbl.copy()
-            self.frac_col_lbl_to_val = self.interest_col_lbl_to_val.copy()
+            self.frac_col_val_to_lbl = {str(val):lbl for val, lbl in self.interest_col_val_to_lbl.items()}
+            self.frac_col_lbl_to_val = {lbl:val for val, lbl in self.frac_col_val_to_lbl.items()}
             self.mode = 'correcter'
         else:
             messagebox.showwarning("warning", "Missing values!")
@@ -563,8 +563,6 @@ def load(self, mode=0):
                     except Exception as e:
                         print("An error occured. The save file \"save_file.pkl\" must be absent or corrupted.")
                         print(f"Original error: {e}")
-                    self.show_image()
-                    self.update_infos()
                     mode = -1
             if mode != -1:
                 # reset variables
@@ -753,8 +751,7 @@ def order(self):
         self.dataset_to_show = self.dataset_to_show.sort_values(
             by=[self.order_var], 
             axis=0, 
-            ascending= self.order_asc, 
-            ignore_index=True)
+            ascending= self.order_asc)
         self.show_image()
         self.update_infos()
         window.destroy()
@@ -805,15 +802,18 @@ def open_list_cat(self):
         self.shown_cat = checked_texts
         shown_cat_keys = [key for key,val in self.frac_col_val_to_lbl.items() if val in self.shown_cat]
         indexes = self.new_dataset.loc[self.new_dataset[self.frac_col].astype('string').isin(shown_cat_keys)].index
-        self.dataset_to_show = self.new_dataset.loc[indexes]
-        #self.num_dataset_to_show = len(self.dataset_to_show)
+        self.dataset_to_show = self.new_dataset.loc[indexes].copy()
+        self.num_dataset_to_show = len(self.dataset_to_show)
         #self.sample_index = 0
         # keep current or go to next
-        if self.frac_col_val_to_lbl[self.dataset_to_show.loc[self.index, self.frac_col]].isin(self.cat_to_show):
+        if self.sample_index not in list(self.dataset_to_show.index):
+            self.show_next_image()
+        """if self.frac_col_val_to_lbl[self.dataset_to_show.loc[self.sample_index, self.frac_col]].isin(self.cat_to_show):
             self.show_image()
             self.update_infos()
         else:
-            self.show_next_image()
+            self.show_next_image()"""
+        self.update_infos()
         window.destroy()
 
     # Retrieve categories from dataset
@@ -864,7 +864,6 @@ def open_list_meta(self):
         checked_items = tree.get_checked()
         checked_texts = [tree.item(item, "text") for item in checked_items]
         self.shown_meta = checked_texts
-        print(self.shown_meta)
         self.show_image()
         self.update_infos()
         window.destroy()
@@ -923,14 +922,14 @@ def remove_sample(self):
     # confirmation
     if not messagebox.askyesno("Confirmation", "You are about to remove this sample. Are you sure?"):
         return
-    
-    # add in corresponding list for potential retrieval
-    self.changes_log.append("removing " + str(self.sample_index))
+
 
     # remove sample
     self.dataset_to_show = self.dataset_to_show.drop(self.sample_index, axis=0)
-    self.new_dataset = self.new_dataset.drop(self.sample_index, axis=0)
-
+    #self.new_dataset = self.new_dataset.drop(self.sample_index, axis=0)
+    
+    # add in corresponding list for potential retrieval
+    self.changes_log.append("removing " + str(self.sample_index))
     self.UnsavedChanges = True
     self.show_next_image()
 

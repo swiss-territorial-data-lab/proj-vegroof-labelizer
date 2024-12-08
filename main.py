@@ -238,14 +238,24 @@ class ImageViewer:
         update_image(self)
 
     def show_next_image(self):
+        if self.num_dataset_to_show == 0:
+            show_image(self)
+            return
         self.sample_index = (self.sample_index + 1) % len(self.dataset_to_show)  # Loop around
+        while  self.sample_index not in list(self.dataset_to_show.index):
+            self.sample_index = (self.sample_index + 1) % len(self.dataset_to_show)  # Loop around
         while self.frac_col_val_to_lbl[str(self.dataset_to_show.loc[self.sample_index, self.frac_col])] not in self.shown_cat:
             self.sample_index = (self.sample_index + 1) % len(self.dataset_to_show)  # Loop around
         show_image(self)
         self.update_infos()
 
     def show_previous_image(self):
+        if self.num_dataset_to_show == 0:
+            show_image()
+            return
         self.sample_index = (self.sample_index - 1) % len(self.dataset_to_show)  # Loop around
+        while  self.sample_index not in list(self.dataset_to_show.index):
+            self.sample_index = (self.sample_index - 1) % len(self.dataset_to_show)  # Loop around
         while self.frac_col_val_to_lbl[str(self.dataset_to_show.loc[self.sample_index, self.frac_col])] not in self.shown_cat:
             self.sample_index = (self.sample_index - 1) % len(self.dataset_to_show)  # Loop around
         show_image(self)
@@ -254,7 +264,9 @@ class ImageViewer:
     def update_infos(self):
         # update files info
         self.num_dataset_to_show = len(self.dataset_to_show)
-        index_pos = self.dataset_to_show.index.get_loc(self.sample_index)
+        index_pos = 0
+        if self.num_dataset_to_show > 0:
+            index_pos = self.dataset_to_show.index.get_loc(self.sample_index)
         self.infos_files['sample shown'] = f'{min([index_pos + 1, self.num_dataset_to_show])} / {self.num_dataset_to_show}'
         self.infos_files['Polygons loc'] = self.polygon_path.split('/')[-1] if self.polygon_path != None else '-'
         self.infos_files['Rasters loc'] = self.raster_path.split('/')[-1] if self.raster_path != None else '-'
@@ -283,14 +295,29 @@ class ImageViewer:
         self.infos_sample.config(text = meta_text if len(self.metadata) > 0 else '-')
 
         # update image title
-        cat = self.dataset_to_show.loc[self.sample_index, self.frac_col]
-        self.title.config(text=f"sample {self.sample_index} - {self.frac_col_val_to_lbl[str(cat)]}")
+        cat_selection = self.dataset_to_show.loc[self.sample_index, self.frac_col]
+        cat_interest = self.dataset_to_show.loc[self.sample_index, self.interest_col]
+        interest_lbl = self.interest_col_val_to_lbl[cat_interest] if cat_interest != "" else '-'
+        if self.mode == 'labelizer':
+            self.title.config(text=f"selector value: {self.frac_col_val_to_lbl[str(cat_selection)]} \t new value: {interest_lbl}")
+        elif self.mode == 'correcter':
+            self.title.config(text=f"value: {interest_lbl}")
+        else:
+            self.title.config(text="No sample to display")
 
         # update sample selector
         self.sample_index_combobox.config(values=[str(x + 1) for x in range(self.num_dataset_to_show)])
-        self.sample_index_combobox.set(str(self.sample_index + 1))
+        self.sample_index_combobox.set(str(self.dataset_to_show.index.get_loc(self.sample_index) + 1))
 
         # update class buttons enabling-state
+        for button in self.lst_buttons_category:
+            text = button.cget('text')
+            if cat_interest == "" and text in self.interest_col_val_to_lbl.values():
+                button.config(state='normal')
+            elif text == self.interest_col_val_to_lbl[cat_interest]:
+                button.config(state='disabled')
+            """elif text in self.interest_col_val_to_lbl.values():
+                button.config(state='normal')"""
         """map_class_to_button={
             'b': self.bare_button,
             't': self.terrace_button,
@@ -317,6 +344,10 @@ class ImageViewer:
         def change_category(self, cat):
             self.new_dataset.loc[self.sample_index, self.interest_col] = cat
             self.dataset_to_show.loc[self.sample_index, self.interest_col] = cat
+            if self.mode == 'correcter':
+                self.new_dataset.loc[self.sample_index, self.frac_col] = cat
+                self.dataset_to_show.loc[self.sample_index, self.frac_col] = cat
+
             self.UnsavedChanges = True
             self.changes_log.append(f"Changing category of sample with index {self.sample_index} to '{cat}'")
 
@@ -340,7 +371,8 @@ class ImageViewer:
         button.config(command=partial(change_category, self, val))
 
     def select_sample(self, event):
-        self.sample_index = int(self.sample_index_combobox.get()) - 1
+        pos_sample = int(self.sample_index_combobox.get())
+        self.sample_index = self.dataset_to_show.index[pos_sample - 1]
         show_image(self)
         self.update_infos()
         
