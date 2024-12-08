@@ -177,7 +177,12 @@ class ImageViewer:
         self.next_button.pack(side="right", padx=20)
 
         # Create class buttons
-        self.bare_button = ttk.Button(self.class_button_frame, text="Bare", command=partial(self.change_category, "b"))
+        self.lst_buttons_category = []
+        for i in range(6):
+            new_button = ttk.Button(self.class_button_frame, text="-", state='disabled')
+            new_button.pack(side="left", padx=5)
+            self.lst_buttons_category.append(new_button)
+        """self.bare_button = ttk.Button(self.class_button_frame, text="Bare", command=partial(self.change_category, "b"))
         self.bare_button.pack(side="left", padx=5)
         self.terrace_button = ttk.Button(self.class_button_frame, text="Terrace", command=partial(self.change_category, "t"))
         self.terrace_button.pack(side="left", padx=5)
@@ -188,7 +193,7 @@ class ImageViewer:
         self.lawn_button = ttk.Button(self.class_button_frame, text="Lawn", command=partial(self.change_category, "l"))
         self.lawn_button.pack(side="left", padx=5)
         self.intensive_button = ttk.Button(self.class_button_frame, text="Intensive", command=partial(self.change_category, "i"))
-        self.intensive_button.pack(side="left", padx=5)
+        self.intensive_button.pack(side="left", padx=5)"""
 
         # Key binding
         #   _samples navigation
@@ -234,14 +239,14 @@ class ImageViewer:
 
     def show_next_image(self):
         self.sample_index = (self.sample_index + 1) % len(self.dataset_to_show)  # Loop around
-        while self.frac_col_val_to_lbl[str(self.dataset_to_show.iloc[self.sample_index][self.frac_col])] not in self.shown_cat:
+        while self.frac_col_val_to_lbl[str(self.dataset_to_show.loc[self.sample_index, self.frac_col])] not in self.shown_cat:
             self.sample_index = (self.sample_index + 1) % len(self.dataset_to_show)  # Loop around
         show_image(self)
         self.update_infos()
 
     def show_previous_image(self):
         self.sample_index = (self.sample_index - 1) % len(self.dataset_to_show)  # Loop around
-        while self.frac_col_val_to_lbl[str(self.dataset_to_show.iloc[self.sample_index][self.frac_col])] not in self.shown_cat:
+        while self.frac_col_val_to_lbl[str(self.dataset_to_show.loc[self.sample_index, self.frac_col])] not in self.shown_cat:
             self.sample_index = (self.sample_index - 1) % len(self.dataset_to_show)  # Loop around
         show_image(self)
         self.update_infos()
@@ -277,20 +282,24 @@ class ImageViewer:
         meta_text = '\n'.join([item[0] + ': ' + str(item[1]) for item in self.metadata.items()])
         self.infos_sample.config(text = meta_text if len(self.metadata) > 0 else '-')
 
+        # update image title
+        cat = self.dataset_to_show.loc[self.sample_index, self.frac_col]
+        self.title.config(text=f"sample {self.sample_index} - {self.frac_col_val_to_lbl[str(cat)]}")
+
         # update sample selector
         self.sample_index_combobox.config(values=[str(x + 1) for x in range(self.num_dataset_to_show)])
         self.sample_index_combobox.set(str(self.sample_index + 1))
 
         # update class buttons enabling-state
-        map_class_to_button={
+        """map_class_to_button={
             'b': self.bare_button,
             't': self.terrace_button,
             's': self.spontaneous_button,
             'e': self.extensive_button,
             'l': self.lawn_button,
             'i': self.intensive_button,
-        }
-        cat = ""
+        }"""
+        """cat = ""
         if self.mode == 'correcter':
             cat = self.dataset_to_show.iloc[self.sample_index][self.frac_col]
         elif self.mode == 'labelizer':
@@ -299,35 +308,37 @@ class ImageViewer:
             if key == cat:
                 button.config(state='disabled')
             else:
-                button.config(state='enabled')
+                button.config(state='enabled')"""
 
         if self.sample_index == self.num_dataset_to_show - 1:
             messagebox.showinfo("informaton", "Last sample reached !")
 
-    def change_category(self, cat):
-        self.new_dataset.loc[self.sample_index, 'class'] = cat
-        self.dataset_to_show.loc[self.sample_index, 'class'] = cat
-        self.UnsavedChanges = True
-        self.changes_log.append(f"Changing category of sample with index {self.sample_index} to '{cat}'")
+    def attribute_button_command(self, button: ttk.Button, val):
+        def change_category(self, cat):
+            self.new_dataset.loc[self.sample_index, self.interest_col] = cat
+            self.dataset_to_show.loc[self.sample_index, self.interest_col] = cat
+            self.UnsavedChanges = True
+            self.changes_log.append(f"Changing category of sample with index {self.sample_index} to '{cat}'")
 
-        # update class buttons enabling-state
-        map_class_to_button={
-            'b': ['bare', self.bare_button],
-            't': ['terrace', self.terrace_button],
-            's': ['spontaneous', self.spontaneous_button],
-            'e': ['extensive', self.extensive_button],
-            'l': ['lawn', self.lawn_button],
-            'i': ['intensive', self.intensive_button],
-        }
-        for key, [label, button] in map_class_to_button.items():
-            if key == cat:
-                button.config(state='disabled')
-                self.title.config(text=f"sample {self.sample_index} - {label}")
-            else:
-                button.config(state='normal')
-        self.update_infos()
-        #self.root.after(300, self.show_next_image)
-        
+            """# update class buttons enabling-state
+            map_class_to_button={
+                'b': ['bare', self.bare_button],
+                't': ['terrace', self.terrace_button],
+                's': ['spontaneous', self.spontaneous_button],
+                'e': ['extensive', self.extensive_button],
+                'l': ['lawn', self.lawn_button],
+                'i': ['intensive', self.intensive_button],
+            }
+            for key, [label, button] in map_class_to_button.items():
+                if key == cat:
+                    button.config(state='disabled')
+                    self.title.config(text=f"sample {self.sample_index} - {label}")
+                else:
+                    button.config(state='normal')"""
+            self.update_infos()
+            #self.root.after(300, self.show_next_image)
+        button.config(command=partial(change_category, self, val))
+
     def select_sample(self, event):
         self.sample_index = int(self.sample_index_combobox.get()) - 1
         show_image(self)

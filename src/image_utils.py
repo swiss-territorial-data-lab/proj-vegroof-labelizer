@@ -34,10 +34,10 @@ def show_image(self):
         return
 
     # Get image from polygon and rasters
-    while self.frac_col_val_to_lbl[str(self.dataset_to_show.iloc[self.sample_index][self.frac_col])] not in self.shown_cat:
+    while self.frac_col_val_to_lbl[str(self.dataset_to_show.loc[self.sample_index, self.frac_col])] not in self.shown_cat:
         self.sample_index += 1
     sample = self.dataset_to_show.iloc[self.sample_index]
-    cat = str(sample[self.frac_col])
+    cat = sample[self.frac_col]
     geometry = sample.geometry
 
     # Define bounding box
@@ -98,7 +98,7 @@ def show_image(self):
         self.photo = ImageTk.PhotoImage(image)
         self.image.config(image=self.photo)
         #self.title.config(text=f"sample {self.sample_index} - {self.frac_col_val_to_lbl[cat]}")
-        self.title.config(text=f"{self.frac_col_val_to_lbl[cat]}")
+        self.title.config(text=f"{self.frac_col_val_to_lbl[str(cat)]}")
         return
     
     elif len(matching_rasters) == 1:
@@ -168,7 +168,7 @@ def show_image(self):
     self.display_image = self.original_image.copy()
     self.photo = ImageTk.PhotoImage(self.display_image)
     self.image_id = self.image.create_image(0, 0, anchor=tk.NW, image=self.photo)
-    self.title.config(text=f"sample {self.sample_index} - {self.frac_col_val_to_lbl[cat]}")
+    self.title.config(text=f"sample {self.sample_index} - {self.frac_col_val_to_lbl[str(cat)]}")
 
 
     # apply initial zoom

@@ -35,8 +35,6 @@ def menu_mode_choice(self, mode_window):
                         messagebox.showwarning("warning", "Duplicate values in select column's labels!")
                         mode_window.focus_set()
                         return
-                    
-                
 
             if text_interest_col_create.get("1.0", "end-1c") == "":
                 messagebox.showwarning("warning", "Missing values!")
@@ -69,22 +67,20 @@ def menu_mode_choice(self, mode_window):
                     messagebox.showwarning("warning", "Duplicate values in interest column's values!")
                     mode_window.focus_set()
                     return
-            
-            
 
             # assign values
             if do_select_col.get() == 1.0:
                 self.frac_col = combobox_select_col.get()
                 for idx, textbox in enumerate(lst_vals_select_col_lbl):
                     if textbox.get("1.0", "end-1c") != "":
-                        self.frac_col_val_to_lbl[str(lst_vals_select_col_val[idx].cget('text'))] = str(textbox.get("1.0", "end-1c"))
-                        self.frac_col_lbl_to_val[str(textbox.get("1.0", "end-1c"))] = str(lst_vals_select_col_val[idx].cget('text'))
+                        self.frac_col_val_to_lbl[lst_vals_select_col_val[idx].cget('text')] = str(textbox.get("1.0", "end-1c"))
+                        self.frac_col_lbl_to_val[str(textbox.get("1.0", "end-1c"))] = lst_vals_select_col_val[idx].cget('text')
             
             self.interest_col = text_interest_col_create.get("1.0", "end-1c")
             for idx, textbox in enumerate(lst_vals_interest_col_lbl):
                 if textbox.get("1.0", "end-1c") != "" and lst_vals_interest_col_val[idx].get("1.0", "end-1c") != "":
-                    self.interest_col_val_to_lbl[str(lst_vals_interest_col_val[idx].get("1.0", "end-1c"))] = str(textbox.get("1.0", "end-1c"))
-                    self.interest_col_lbl_to_val[str(textbox.get("1.0", "end-1c"))] = str(lst_vals_interest_col_val[idx].get("1.0", "end-1c"))
+                    self.interest_col_val_to_lbl[lst_vals_interest_col_val[idx].get("1.0", "end-1c")] = str(textbox.get("1.0", "end-1c"))
+                    self.interest_col_lbl_to_val[str(textbox.get("1.0", "end-1c"))] = lst_vals_interest_col_val[idx].get("1.0", "end-1c")
             self.mode = 'labelizer'
             
         elif combobox_mode.get() == 'correcter':
@@ -108,10 +104,14 @@ def menu_mode_choice(self, mode_window):
             
             # assign values
             self.interest_col = combobox_interest_col.get()
+            select_col = combobox_interest_col.get()
+            lst_values = self.new_dataset[select_col].unique()
             for idx, textbox in enumerate(lst_vals_interest_col_lbl):
                 if textbox.get("1.0", "end-1c") != "" and lst_vals_interest_col_val[idx].get("1.0", "end-1c") != "":
-                    self.interest_col_val_to_lbl[str(lst_vals_interest_col_val[idx].get("1.0", "end-1c"))] = str(textbox.get("1.0", "end-1c"))
-                    self.interest_col_lbl_to_val[str(textbox.get("1.0", "end-1c"))] = str(lst_vals_interest_col_val[idx].get("1.0", "end-1c"))
+                    #self.interest_col_val_to_lbl[lst_vals_interest_col_val[idx].get("1.0", "end-1c")] = str(textbox.get("1.0", "end-1c"))
+                    #self.interest_col_lbl_to_val[str(textbox.get("1.0", "end-1c"))] = lst_vals_interest_col_val[idx].get("1.0", "end-1c")
+                    self.interest_col_val_to_lbl[lst_values[idx]] = str(textbox.get("1.0", "end-1c"))
+                    self.interest_col_lbl_to_val[str(textbox.get("1.0", "end-1c"))] = lst_values[idx]
             self.frac_col = self.interest_col
             self.frac_col_val_to_lbl = self.interest_col_val_to_lbl.copy()
             self.frac_col_lbl_to_val = self.interest_col_lbl_to_val.copy()
@@ -122,7 +122,7 @@ def menu_mode_choice(self, mode_window):
             return
 
         #self.new_dataset = self.new_dataset.loc[self.new_dataset[self.frac_col].isin(list(self.frac_col_lbl_to_val.keys()))]
-        self.shown_cat = [str(val) for val in self.frac_col_val_to_lbl.values()]
+        self.shown_cat = [cat for cat in self.frac_col_val_to_lbl.values()]
         self.num_dataset_to_show = len(self.new_dataset)
         return_value[0] = True
         mode_window.destroy()
@@ -187,8 +187,6 @@ def menu_mode_choice(self, mode_window):
             mode_window.focus_set()
             return
         toggle_selection_frame(frame_select_col_mapping_sub2,'normal')
-        self.frac_col = select_col
-        self.frac_col_val_to_lbl = {val:"" for val in lst_values}
         for i in range(6):
             lst_vals_select_col_val[i].config(text=f"Val {i}")
             lst_vals_select_col_lbl[i].delete("1.0", "end-1c")
@@ -373,7 +371,7 @@ def menu_mode_choice_2(self, mode_window):
         if combobox_mode.get() != 'Select and option' and combobox_class != 'Select an option':
             self.mode = combobox_mode.get()
             self.frac_col = combobox_class.get()
-            self.new_dataset[self.frac_col] = self.new_dataset[self.frac_col].astype('string')
+            self.new_dataset[self.frac_col] = self.new_dataset[self.frac_col]
             if combobox_bare.get() != '-' and combobox_vege.get() != '-' and self.mode == 'labelizer':
                 self.frac_col_lbl_to_val = {
                     combobox_bare.get(): 'bare',
@@ -532,7 +530,6 @@ def load(self, mode=0):
         title="Select the vector source",
         filetypes=[("GeoPackage Files", "*.gpkg"), ("All Files", "*.*")]
         )
-
         if self.polygon_path != "":
             self.dataset = gpd.read_file(self.polygon_path)
             self.new_dataset = gpd.read_file(self.polygon_path)
@@ -568,30 +565,30 @@ def load(self, mode=0):
                         print(f"Original error: {e}")
                     self.show_image()
                     self.update_infos()
+                    mode = -1
+            if mode != -1:
+                # reset variables
+                self.changes_log = []
+                self.shown_cat = []
+                self.shown_meta = []
+                self.order_var = None
+                self.order_asc = True
+
+                # show mode choice window
+                top_level = Toplevel(self.root)
+                is_mode_well_set =  menu_mode_choice(self, top_level)
+                if not is_mode_well_set: # make sure that the polygon is well set
                     return
-
-            # reset variables
-            self.changes_log = []
-            self.shown_cat = []
-            self.shown_meta = []
-            self.order_var = None
-            self.order_asc = True
-
-            # show mode choice window
-            top_level = Toplevel(self.root)
-            is_mode_well_set =  menu_mode_choice(self, top_level)
-            if not is_mode_well_set: # make sure that the polygon is well set
-                return
-            
-            # continue to process input polygons
-            if self.mode == 'labelizer':
-                """self.new_dataset.rename(columns={self.frac_col:'class_binary'}, inplace=True)
-                self.frac_col = 'class_binary'
-                self.new_dataset.class_binary = self.new_dataset.class_binary.astype('string')
-                for cat, val in self.frac_col_lbl_to_val.items():
-                    self.new_dataset.loc[self.new_dataset.class_binary == str(val), 'class_binary'] = str(cat)"""
-                self.new_dataset[self.interest_col] = ""
-            self.dataset_to_show = self.new_dataset.copy()
+                
+                # continue to process input polygons
+                if self.mode == 'labelizer':
+                    """self.new_dataset.rename(columns={self.frac_col:'class_binary'}, inplace=True)
+                    self.frac_col = 'class_binary'
+                    self.new_dataset.class_binary = self.new_dataset.class_binary.astype('string')
+                    for cat, val in self.frac_col_lbl_to_val.items():
+                        self.new_dataset.loc[self.new_dataset.class_binary == str(val), 'class_binary'] = str(cat)"""
+                    self.new_dataset[self.interest_col] = ""
+                self.dataset_to_show = self.new_dataset.copy()
 
     # load rasters
     if mode in [0,2]:
@@ -605,12 +602,6 @@ def load(self, mode=0):
                         file_src = file_src.replace('\\','/')
                         self.list_rasters_src.append(file_src)
 
-    if self.polygon_path != "" and self.raster_path != "":
-        self.sample_index = 0
-        self.show_image()
-    if self.polygon_path != "" or self.raster_path != "":
-        self.update_infos()
-
     if mode == 3:
         save_path = filedialog.askopenfilename(
         title="Select the save file",
@@ -619,7 +610,7 @@ def load(self, mode=0):
 
         if save_path != "":
             try:
-                with open(os.path.join(new_polygon_path, 'save_file.pkl'), 'rb') as in_file:
+                with open(os.path.join(save_path), 'rb') as in_file:
                     dict_save = pickle.load(in_file)
                 self.polygon_path = dict_save['polygon_path']
                 self.raster_path = dict_save['raster_path']
@@ -641,9 +632,18 @@ def load(self, mode=0):
             except Exception as e:
                 print("An error occured. The save file \"save_file.pkl\" must be absent or corrupted.")
                 print(f"Original error: {e}")
-            self.show_image()
-            self.update_infos()
-            return
+            #self.show_image()
+            #self.update_infos()
+
+    if self.polygon_path != "" and self.raster_path != "":
+        #self.sample_index = 0
+        self.show_image()
+        # activate categorie buttons
+        for idx, (val, label) in enumerate(self.interest_col_val_to_lbl.items()):
+            self.lst_buttons_category[idx].config(text=label, state='normal')
+            self.attribute_button_command(self.lst_buttons_category[idx], val)
+    if self.polygon_path != "" or self.raster_path != "":
+        self.update_infos()
     
 
 def save(self):
@@ -671,8 +671,8 @@ def save(self):
 
         # save dataset to geopackage and csv
         if self.mode == 'labelizer':
-            self.new_dataset.loc[self.new_dataset['class'] != ""].drop('geometry', axis=1).to_csv(new_csv_src, sep=';', index=None)
-            self.new_dataset.loc[self.new_dataset['class'] != ""].to_file(new_polygon_src)
+            self.new_dataset.loc[self.new_dataset[self.interest_col] != ""].drop('geometry', axis=1).to_csv(new_csv_src, sep=';', index=None)
+            self.new_dataset.loc[self.new_dataset[self.interest_col] != ""].to_file(new_polygon_src)
         else: # if self.mode  = 'correcter
             self.new_dataset.to_file(new_polygon_src)
             self.new_dataset.drop('geometry', axis=1).to_csv(new_csv_src, sep=';', index=None)
@@ -929,11 +929,10 @@ def remove_sample(self):
 
     # remove sample
     self.dataset_to_show = self.dataset_to_show.drop(self.sample_index, axis=0)
-
     self.new_dataset = self.new_dataset.drop(self.sample_index, axis=0)
 
-    self.show_next_image()
     self.UnsavedChanges = True
+    self.show_next_image()
 
 
 if __name__ == '__main__':
