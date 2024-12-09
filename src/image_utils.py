@@ -34,11 +34,13 @@ def show_image(self):
         return
 
     # Get image from polygon and rasters
-    while  self.sample_index not in list(self.dataset_to_show.index):
-        self.sample_index = (self.sample_index + 1) % len(self.dataset_to_show)  # Loop around
+    """while  self.sample_index not in list(self.dataset_to_show.index):
+        self.sample_index = (self.sample_index + 1) % (self.dataset_to_show.index[-1] + 1) # Loop around
     while self.frac_col_val_to_lbl[str(self.dataset_to_show.loc[self.sample_index, self.frac_col])] not in self.shown_cat:
-        self.sample_index = (self.sample_index + 1) % len(self.dataset_to_show)  # Loop around
-    sample = self.dataset_to_show.iloc[self.sample_index]
+        self.sample_index = (self.sample_index + 1) % (self.dataset_to_show.index[-1] + 1)  # Loop around"""
+    #self.sample_index = self.dataset_to_show.index[self.sample_pos]
+    self.sample_pos = self.dataset_to_show.index.get_loc(self.sample_index)
+    sample = self.dataset_to_show.loc[self.sample_index]
     cat = sample[self.frac_col]
     geometry = sample.geometry
 
@@ -116,7 +118,8 @@ def show_image(self):
         bounds=geom_large.bounds,
         resampling=rasterio.enums.Resampling.nearest
         )
-    img_arr = img_arr[1:4, ...]
+    if img_arr.shape[0] == 4:
+        img_arr = img_arr[1:4, ...]
 
     # Plot the raster and overlay the original polygon
     fig, ax = plt.subplots(figsize=(10, 10))
@@ -180,12 +183,38 @@ def show_image(self):
     # apply initial zoom
     self.initial_zoom = (max(deltax, deltay) + 2 * self.margin_around_image) / max(deltax, deltay)
     self.current_zoom = self.initial_zoom / 1.1
+    self.offset_x = 0.5
+    self.offset_y = 0.5
     self.update_image()
 
     plt.close()
 
-def zoom(self, event):
-    # Adjust zoom level based on scroll direction
+
+
+
+"""# Example usage
+current_center = (100, 100)  # Current center in map coordinates
+map_dimensions = (200, 200)  # Map width and height
+full_map_dimensions = (1000, 1000)  # Full map width and height
+cursor_position = (150, 100)  # Cursor position on screen
+zoom_factor = 1.1  # Zooming in
+
+new_relative_center = calculate_new_relative_center(*current_center, *map_dimensions, 
+                                                    *cursor_position, *full_map_dimensions, 
+                                                    zoom_factor)
+print(f"New relative center: {new_relative_center}")"""
+
+def zoom_follow_cursor(self, event):
+    #==========
+    # NOT WORKING YET
+    #==========
+
+    # Store old zoom level and dimensions
+    old_zoom = self.current_zoom
+    old_logical_width = self.img_width / old_zoom
+    old_logical_height = self.img_height / old_zoom
+
+    # Adjust zoom level
     if event.delta > 0:
         self.current_zoom *= 1.1
     elif event.delta < 0:
@@ -194,17 +223,51 @@ def zoom(self, event):
     # Constrain zoom level
     self.current_zoom = max(1.0, min(self.current_zoom, self.initial_zoom * 1.5))
 
-    # Get cursor position relative to the image
+    # Calculate the zoom factor
+    zoom_factor = self.current_zoom / old_zoom
+
+    # Update logical map dimensions
+    self.logical_width = self.img_width / self.current_zoom
+    self.logical_height = self.img_height / self.current_zoom
+
+    # Get cursor position relative to the image (screen coordinates)
     cursor_x = self.image.canvasx(event.x)
     cursor_y = self.image.canvasy(event.y)
 
-    # Adjust offsets to keep the zoom focused on the cursor position
-    self.offset_x = cursor_x / self.img_width - 0.5
-    self.offset_y = cursor_y / self.img_height - 0.5
+    # Convert cursor to logical coordinates
+    cursor_logical_x = self.offset_x * self.img_width + cursor_x / self.img_width * old_logical_width
+    cursor_logical_y = self.offset_y * self.img_height + cursor_y / self.img_height * old_logical_height
 
-    # Update the displayed image
+    # Calculate new offsets (relative to the full map)
+    self.offset_x = (cursor_logical_x - self.logical_width / 2) / self.img_width
+    self.offset_y = (cursor_logical_y - self.logical_height / 2) / self.img_height
+
+    # Constrain offsets to keep the visible area within bounds
+    self.offset_x = max(0, min(self.offset_x, 1 - self.logical_width / self.img_width))
+    self.offset_y = max(0, min(self.offset_y, 1 - self.logical_height / self.img_height))
+
+    # Update and display the resized image
     self.update_image()
 
+
+def zoom(self, event):
+    # Adjust zoom level
+    if event.delta > 0:
+        self.current_zoom *= 1.1
+    elif event.delta < 0:
+        self.current_zoom /= 1.1
+
+    # Constrain zoom level
+    self.current_zoom = max(1.0, min(self.current_zoom, self.initial_zoom * 1.5))
+  
+    # Constrain offsets to stay within the image boundaries
+    offset_x_max = 0.5 * (2 - 1/self.current_zoom)
+    offset_y_max = 0.5 * (2 - 1/self.current_zoom)
+    self.offset_x = max(0, min(self.offset_x, offset_x_max))
+    self.offset_y = max(0, min(self.offset_y, offset_y_max))
+
+    # Update and display the resized image
+    self.update_image()
 
 def start_drag(self, event):
     # Record the starting position for dragging
@@ -213,22 +276,18 @@ def start_drag(self, event):
 
 
 def drag_image(self, event):
-    """print(self.offset_x)
-    print(self.offset_y)
-    print("-"*10)"""
     # Compute the drag distance
     dx = event.x - self.last_drag_x
     dy = event.y - self.last_drag_y
-    print(dx)
-    print(dy)
-    print("-"*10)
     # Update the offsets
     self.offset_x -= dx / self.img_width
     self.offset_y -= dy / self.img_height
 
     # Constrain offsets to stay within the image boundaries
-    self.offset_x = max(0, min(self.offset_x, 1))
-    self.offset_y = max(0, min(self.offset_y, 1))
+    offset_x_max = 0.5 * (2 - 1/self.current_zoom)
+    offset_y_max = 0.5 * (2 - 1/self.current_zoom)
+    self.offset_x = max(0, min(self.offset_x, offset_x_max))
+    self.offset_y = max(0, min(self.offset_y, offset_y_max))
 
     # Update the image position
     self.last_drag_x = event.x
@@ -243,18 +302,19 @@ def update_image(self):
     crop_height = int(self.img_height / self.current_zoom)
 
     # Calculate the crop box
-    """center_x = int(self.offset_x * self.img_width)
+    center_x = int(self.offset_x * self.img_width)
     center_y = int(self.offset_y * self.img_height)
     left = max(center_x - crop_width // 2, 0)
     top = max(center_y - crop_height // 2, 0)
     right = min(left + crop_width, self.img_width)
-    bottom = min(top + crop_height, self.img_height)"""
-    center_x = self.img_width // 2
+    bottom = min(top + crop_height, self.img_height)
+
+    """center_x = self.img_width // 2
     center_y = self.img_height // 2
     left = center_x - crop_width // 2
     top = center_y - crop_height // 2
     right = center_x + crop_width // 2
-    bottom = center_y + crop_height // 2
+    bottom = center_y + crop_height // 2"""
 
     # Crop and resize the image
     cropped_image = self.original_image.crop((left, top, right, bottom))

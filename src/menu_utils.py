@@ -2,6 +2,7 @@ import tkinter as tk
 import os
 import numpy as np
 import pickle
+import rasterio
 import pandas as pd
 from tkinter import Tk, Menu, Label, Button, Frame, Text, font, filedialog, messagebox, Checkbutton, Scrollbar, IntVar, Canvas,Toplevel
 from tkinter.scrolledtext import ScrolledText
@@ -68,6 +69,12 @@ def menu_mode_choice(self, mode_window):
                     mode_window.focus_set()
                     return
 
+            # reinitialize
+            self.frac_col_val_to_lbl = {}
+            self.frac_col_lbl_to_val = {}
+            self.interest_col_val_to_lbl = {}
+            self.interest_col_lbl_to_val = {}
+            
             # assign values
             if do_select_col.get() == 1.0:
                 self.frac_col = combobox_select_col.get()
@@ -220,7 +227,23 @@ def menu_mode_choice(self, mode_window):
             if mode == 'correcter':
                 lst_vals_interest_col_val[i].config(state='disabled')
                 lst_vals_interest_col_lbl[i].config(state='disabled')
-    
+
+    # move focus to the next widget
+    def focus_next(event):
+        event.widget.tk_focusNext().focus()
+        return "break"  # Prevent the default tab behavior (inserting a tab character)
+
+    # move focus to the previous widget
+    def focus_previous(event):
+        event.widget.tk_focusPrev().focus()
+        return "break"  # Prevent the default tab behavior (inserting a tab character)
+
+    # Function to select all content of a Text widget when it gets focus
+    def select_all(event):
+        event.widget.focus_set()  # Ensure the widget has focus
+        event.widget.tag_add("sel", "1.0", "end-1c")  # Add selection tag
+        return "break"  # Prevent default behavior
+
     # result that say if the mode has been correctly set
     return_value = [False]
 
@@ -238,16 +261,16 @@ def menu_mode_choice(self, mode_window):
 
     # select mode
     label = Label(mode_window, text="Select mode:")
-    label.pack(anchor='w', padx=10)
+    label.pack(anchor='w', padx=10, pady=10)
 
     combobox_mode = Combobox(mode_window, values=['labelizer', 'correcter'])
     combobox_mode.set("Select an option")  # Texte par défaut
-    combobox_mode.pack(pady=20)
+    combobox_mode.pack()
 
     # select selection column
     #   _ ask if selection column
     frame_select_col_header = Frame(mode_window, width=350, height=30)
-    frame_select_col_header.pack()
+    frame_select_col_header.pack(pady=10)
     frame_select_col_header.pack_propagate(False)
     lbl_select_col = Label(frame_select_col_header, text="Do you want to add a selection column?", foreground='light grey', state='disabled')
     lbl_select_col.pack(side='left', padx=10)
@@ -257,13 +280,13 @@ def menu_mode_choice(self, mode_window):
     checkbutton_do_select_col.config(state='disabled')
     
     #   _main frame
-    frame_select_col = Frame(mode_window, width=350, height=150)
-    frame_select_col.pack()
+    frame_select_col = Frame(mode_window, relief=tk.RIDGE, borderwidth=2, width=350, height=130)
+    frame_select_col.pack(fill="x", padx=10)
     frame_select_col.pack_propagate(False)
 
     #   _mapping of the column
     frame_select_col_mapping = Frame(frame_select_col, width=350, height=90)
-    frame_select_col_mapping.pack()
+    frame_select_col_mapping.pack(pady=5)
 
     #       _column selection
     frame_select_col_mapping_sub1 = Frame(frame_select_col_mapping, width=350, height=30)
@@ -292,16 +315,18 @@ def menu_mode_choice(self, mode_window):
         new_textbox = Text(new_frame, width=10, height=1)
         new_textbox.pack(side='left', padx=10, expand=False, fill=None)
         new_textbox.config(state='disabled', foreground='light grey')
+        new_textbox.bind("<Tab>", focus_next)
+        new_textbox.bind("<Shift-Tab>", focus_previous)
         lst_vals_select_col_val.append(new_lbl)
         lst_vals_select_col_lbl.append(new_textbox)
 
-    # select interest column
-    frame_interest_col = Frame(mode_window, width=350, height=150)
-    frame_interest_col.pack()
+    #   _select interest column
+    frame_interest_col = Frame(mode_window, relief=tk.RIDGE, borderwidth=2, width=350, height=150)
+    frame_interest_col.pack(pady=10, padx=10, fill="x")
 
-    #   _mapping of the column
+    #       _mapping of the column
     frame_interest_col_mapping = Frame(frame_interest_col, width=350, height=170)
-    frame_interest_col_mapping.pack()
+    frame_interest_col_mapping.pack(pady=5)
 
     #       _column selection
     frame_interest_col_mapping_sub11 = Frame(frame_interest_col_mapping, width=350, height=30)
@@ -319,7 +344,9 @@ def menu_mode_choice(self, mode_window):
     lbl_interest_col_mapping_create.pack(side='left', padx=10)
     text_interest_col_create = Text(frame_interest_col_mapping_sub12, width=20, height=1, state='disabled', foreground='light grey')
     text_interest_col_create.pack(side='right', padx=10)
-
+    text_interest_col_create.bind("<Tab>", focus_next)
+    text_interest_col_create.bind("<Shift-Tab>", focus_previous)
+    
     #       _mapping grid
     frame_interest_col_mapping_sub2 = Frame(frame_interest_col_mapping, width=350, height=140)
     frame_interest_col_mapping_sub2.pack()
@@ -338,12 +365,17 @@ def menu_mode_choice(self, mode_window):
         new_textbox_val.config(state='disabled')
         new_textbox_lbl = Text(new_frame, width=10, height=1, state='disabled', foreground='light grey')
         new_textbox_lbl.pack(side='left', padx=5, expand=False, fill=None)
+        new_textbox_val.bind("<Tab>", focus_next)
+        new_textbox_lbl.bind("<Tab>",  focus_next)
+        new_textbox_val.bind("<Shift-Tab>", focus_previous)
+        new_textbox_lbl.bind("<Shift-Tab>",  focus_previous)
+        new_textbox_val.bind("<FocusIn>", select_all)
         lst_vals_interest_col_val.append(new_textbox_val)
         lst_vals_interest_col_lbl.append(new_textbox_lbl)
 
     # Add ok button
     ok_button = ttk.Button(mode_window, text='OK', command=partial(ok_button_pressed, return_value))
-    ok_button.pack(pady=20)
+    ok_button.pack(pady=15)
 
     # bindings
     combobox_select_col.bind("<<ComboboxSelected>>", select_col_selection)
@@ -533,6 +565,7 @@ def load(self, mode=0):
         if self.polygon_path != "":
             self.dataset = gpd.read_file(self.polygon_path)
             self.new_dataset = gpd.read_file(self.polygon_path)
+            self.old_crs = self.dataset.crs
             
             # verify if a save already exists
             new_polygon_path = self.polygon_path.split('.')[:-1]
@@ -548,7 +581,10 @@ def load(self, mode=0):
                         self.dataset = dict_save['dataset']
                         self.new_dataset = dict_save['new_dataset']
                         self.dataset_to_show = dict_save['dataset_to_show']
+                        self.new_crs = dict_save['new_crs']
+                        self.old_crs = dict_save['old_crs']
                         self.sample_index = dict_save['sample_index']
+                        self.sample_pos = dict_save['sample_pos']
                         self.shown_cat = dict_save['shown_cat']
                         self.shown_meta = dict_save['shown_meta']
                         self.list_rasters_src = dict_save['list_rasters_src']
@@ -599,6 +635,10 @@ def load(self, mode=0):
                         file_src = r + '/' + file
                         file_src = file_src.replace('\\','/')
                         self.list_rasters_src.append(file_src)
+            # find crs
+            if len(self.list_rasters_src) > 0:
+                with rasterio.open(self.list_rasters_src[0], 'r') as raster:
+                    self.new_crs = raster.crs
 
     if mode == 3:
         save_path = filedialog.askopenfilename(
@@ -615,7 +655,10 @@ def load(self, mode=0):
                 self.dataset = dict_save['dataset']
                 self.new_dataset = dict_save['new_dataset']
                 self.dataset_to_show = dict_save['dataset_to_show']
+                self.new_crs = dict_save['new_crs']
+                self.old_crs = dict_save['old_crs']
                 self.sample_index = dict_save['sample_index']
+                self.sample_pos = dict_save['sample_pos']
                 self.shown_cat = dict_save['shown_cat']
                 self.shown_meta = dict_save['shown_meta']
                 self.list_rasters_src = dict_save['list_rasters_src']
@@ -634,12 +677,17 @@ def load(self, mode=0):
             #self.update_infos()
 
     if self.polygon_path != "" and self.raster_path != "":
-        #self.sample_index = 0
-        self.show_image()
+        # attriute new crs
+        self.new_dataset = self.new_dataset.to_crs(crs=self.new_crs)
+        self.dataset_to_show = self.dataset_to_show.to_crs(crs=self.new_crs)
+
         # activate categorie buttons
         for idx, (val, label) in enumerate(self.interest_col_val_to_lbl.items()):
             self.lst_buttons_category[idx].config(text=label, state='normal')
             self.attribute_button_command(self.lst_buttons_category[idx], val)
+
+        self.show_image()
+
     if self.polygon_path != "" or self.raster_path != "":
         self.update_infos()
     
@@ -670,9 +718,9 @@ def save(self):
         # save dataset to geopackage and csv
         if self.mode == 'labelizer':
             self.new_dataset.loc[self.new_dataset[self.interest_col] != ""].drop('geometry', axis=1).to_csv(new_csv_src, sep=';', index=None)
-            self.new_dataset.loc[self.new_dataset[self.interest_col] != ""].to_file(new_polygon_src)
+            self.new_dataset.loc[self.new_dataset[self.interest_col] != ""].to_crs(self.old_crs).to_file(new_polygon_src)
         else: # if self.mode  = 'correcter
-            self.new_dataset.to_file(new_polygon_src)
+            self.new_dataset.to_crs(self.old_crs).to_file(new_polygon_src)
             self.new_dataset.drop('geometry', axis=1).to_csv(new_csv_src, sep=';', index=None)
 
         # save list of changes
@@ -687,7 +735,10 @@ def save(self):
             'dataset': self.dataset,
             'new_dataset': self.new_dataset,
             'dataset_to_show': self.dataset_to_show,
+            'new_crs': self.new_crs,
+            'old_crs': self.old_crs,
             'sample_index': self.sample_index,
+            'sample_pos': self.sample_pos,
             'shown_cat': self.shown_cat,
             'shown_meta': self.shown_meta,
             'list_rasters_src': self.list_rasters_src,
@@ -806,8 +857,13 @@ def open_list_cat(self):
         self.num_dataset_to_show = len(self.dataset_to_show)
         #self.sample_index = 0
         # keep current or go to next
+        # sample_pos = (self.dataset_to_show.index.get_loc(self.sample_index) + 1)  % len(self.dataset_to_show)  # Loop around
+        # self.sample_index = self.dataset_to_show.index[sample_pos]
         if self.sample_index not in list(self.dataset_to_show.index):
-            self.show_next_image()
+            self.sample_index = self.dataset_to_show.index[self.sample_pos]
+            self.show_image()
+        else:
+            self.sample_pos = self.dataset_to_show.index.get_loc(self.sample_index)
         """if self.frac_col_val_to_lbl[self.dataset_to_show.loc[self.sample_index, self.frac_col]].isin(self.cat_to_show):
             self.show_image()
             self.update_infos()
@@ -926,7 +982,7 @@ def remove_sample(self):
 
     # remove sample
     self.dataset_to_show = self.dataset_to_show.drop(self.sample_index, axis=0)
-    #self.new_dataset = self.new_dataset.drop(self.sample_index, axis=0)
+    self.new_dataset = self.new_dataset.drop(self.sample_index, axis=0)
     
     # add in corresponding list for potential retrieval
     self.changes_log.append("removing " + str(self.sample_index))

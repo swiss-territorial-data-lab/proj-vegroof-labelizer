@@ -1,46 +1,54 @@
 import tkinter as tk
-from PIL import Image, ImageTk
 
-class ImageZoomApp:
-    def __init__(self, root, image_path):
-        self.root = root
-        self.root.title("Image Zoom Example")
+# Function to select all text when the Text widget gains focus
+def select_all(event):
+    # Select all text
+    event.widget.focus_set()  # Ensure the widget has focus
+    event.widget.tag_add("sel", "1.0", "end-1c")  # Add selection tag
+    return "break"  # Prevent default behavior
 
-        # Load the image using PIL
-        self.original_image = Image.open('./src/no_image.png')
-        self.image_zoom_factor = 1.0  # Zoom factor
-        self.image_display = self.original_image
+# Function to move focus to the next widget
+def focus_next(event):
+    event.widget.tk_focusNext().focus()
+    return "break"
 
-        # Convert the image to ImageTk format
-        self.tk_image = ImageTk.PhotoImage(self.image_display)
+# Function to move focus to the previous widget with Shift+Tab
+def focus_previous(event):
+    event.widget.tk_focusPrev().focus()
+    return "break"
 
-        # Create a Label to display the image
-        self.label = tk.Label(root, image=self.tk_image)
-        self.label.pack(fill=tk.BOTH, expand=True)
-
-        # Bind the mouse scroll event
-        self.label.bind("<MouseWheel>", self.zoom_image)
-
-    def zoom_image(self, event):
-        # Adjust zoom factor based on scroll direction
-        if event.delta > 0:
-            self.image_zoom_factor *= 1.1  # Zoom in
-        elif event.delta < 0:
-            self.image_zoom_factor /= 1.1  # Zoom out
-
-        # Limit zoom factor to reasonable values
-        self.image_zoom_factor = max(0.1, min(self.image_zoom_factor, 5.0))
-
-        # Resize the image
-        new_width = int(self.original_image.width * self.image_zoom_factor)
-        new_height = int(self.original_image.height * self.image_zoom_factor)
-        self.image_display = self.original_image.resize((new_width, new_height), Image.LANCZOS)
-
-        # Update the image in the label
-        self.tk_image = ImageTk.PhotoImage(self.image_display)
-        self.label.config(image=self.tk_image)
-
-# Create the main application window
+# Create the main Tkinter window
 root = tk.Tk()
-app = ImageZoomApp(root, "your_image.jpg")  # Replace with your image path
+
+# Create multiple Text widgets
+text1 = tk.Text(root, height=5, width=40)
+text2 = tk.Text(root, height=5, width=40)
+text3 = tk.Text(root, height=5, width=40)
+
+# Add some default text
+text1.insert("1.0", "This is Text 1.")
+text2.insert("1.0", "This is Text 2.")
+text3.insert("1.0", "This is Text 3.")
+
+# Pack the widgets
+text1.pack(pady=5)
+text2.pack(pady=5)
+text3.pack(pady=5)
+
+# Bind the <<FocusIn>> event to select all text
+text1.bind("<FocusIn>", select_all)
+text2.bind("<FocusIn>", select_all)
+text3.bind("<FocusIn>", select_all)
+
+# Bind the <Tab> key to focus_next function
+text1.bind("<Tab>", focus_next)
+text2.bind("<Tab>", focus_next)
+text3.bind("<Tab>", focus_next)
+
+# Bind Shift+Tab to move focus backward
+text1.bind("<Shift-Tab>", focus_previous)
+text2.bind("<Shift-Tab>", focus_previous)
+text3.bind("<Shift-Tab>", focus_previous)
+
+# Run the Tkinter event loop
 root.mainloop()
