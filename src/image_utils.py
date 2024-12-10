@@ -34,11 +34,6 @@ def show_image(self):
         return
 
     # Get image from polygon and rasters
-    """while  self.sample_index not in list(self.dataset_to_show.index):
-        self.sample_index = (self.sample_index + 1) % (self.dataset_to_show.index[-1] + 1) # Loop around
-    while self.frac_col_val_to_lbl[str(self.dataset_to_show.loc[self.sample_index, self.frac_col])] not in self.shown_cat:
-        self.sample_index = (self.sample_index + 1) % (self.dataset_to_show.index[-1] + 1)  # Loop around"""
-    #self.sample_index = self.dataset_to_show.index[self.sample_pos]
     self.sample_pos = self.dataset_to_show.index.get_loc(self.sample_index)
     sample = self.dataset_to_show.loc[self.sample_index]
     cat = sample[self.frac_col]
@@ -81,7 +76,6 @@ def show_image(self):
         (new_minx, new_maxy),  # Top-left
         (new_minx, new_miny),  # Close the polygon
         ])
-    #geom_large = scale_geometry(geometry, xfact=5, yfact=5)
 
     matching_rasters = []
     matching_images = []
@@ -102,11 +96,6 @@ def show_image(self):
         self.display_image = self.original_image.copy()
         self.photo = ImageTk.PhotoImage(self.display_image)
         self.image_id = self.image.create_image(0, 0, anchor=tk.NW, image=self.photo)
-        """image = Image.open("./src/no_image.png").resize((self.img_width, self.img_height))
-        self.photo = ImageTk.PhotoImage(image)
-        self.image.config(image=self.photo)
-        #self.title.config(text=f"sample {self.sample_index} - {self.frac_col_val_to_lbl[cat]}")"""
-        #self.title.config(text=f"{self.frac_col_val_to_lbl[str(cat)]}")
         return
     
     elif len(matching_rasters) == 1:
@@ -150,7 +139,6 @@ def show_image(self):
         img_arr = (img_arr/np.max(img_arr) * 255).astype('uint8')
 
     # show results
-    #img_arr = np.moveaxis(img_arr, 0, 2)
     image = Image.fromarray(img_arr)
 
     #   _resize image
@@ -308,13 +296,6 @@ def update_image(self):
     top = max(center_y - crop_height // 2, 0)
     right = min(left + crop_width, self.img_width)
     bottom = min(top + crop_height, self.img_height)
-
-    """center_x = self.img_width // 2
-    center_y = self.img_height // 2
-    left = center_x - crop_width // 2
-    top = center_y - crop_height // 2
-    right = center_x + crop_width // 2
-    bottom = center_y + crop_height // 2"""
 
     # Crop and resize the image
     cropped_image = self.original_image.crop((left, top, right, bottom))

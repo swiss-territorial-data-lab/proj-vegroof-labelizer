@@ -28,8 +28,8 @@ class ImageViewer:
         self.new_crs = ""
         self.list_rasters_src = []
         self.changes_log = []
-        #self.id_sec = 0
         self.shown_cat = []
+        self.id_cols = []
         self.shown_meta = []
         self.infos_files = {
             'Polygons loc': '-',
@@ -37,25 +37,19 @@ class ImageViewer:
             'sample shown': '0/0',
         }
 
-        #   _ordering variables
+        #   _ordering variables and metadata
         self.order_var = None
         self.order_asc = True
+        self.metadata = {}
 
-        #self.frac_col_lbl_to_val = {}
-        #self.class_to_label = {}
+        #   _input variables
         self.frac_col = ""
         self.interest_col = ""
         self.frac_col_lbl_to_val = {}
         self.frac_col_val_to_lbl = {}
         self.interest_col_lbl_to_val = {}
         self.interest_col_val_to_lbl = {}
-
-        self.metadata = {}
-
-        #   _input variables
-        #self.frac_col = ""
         self.mode = ""
-        #self.input_bin_class_values = {}
 
         # Set a custom font style for the app
         self.custom_font = font.Font(family="Helvetica", size=10, weight="bold")
@@ -136,8 +130,6 @@ class ImageViewer:
         # Get the image dimensions
         img_dim = 512
         self.img_width, self.img_height = (img_dim, img_dim)
-
-        #self.image = Label(root)
         self.image = Canvas(root, width=self.img_width, height=self.img_height)
         self.image_id = 0
         self.original_image = None
@@ -185,18 +177,6 @@ class ImageViewer:
             new_button = ttk.Button(self.class_button_frame, text="-", state='disabled')
             new_button.pack(side="left", padx=5)
             self.lst_buttons_category.append(new_button)
-        """self.bare_button = ttk.Button(self.class_button_frame, text="Bare", command=partial(self.change_category, "b"))
-        self.bare_button.pack(side="left", padx=5)
-        self.terrace_button = ttk.Button(self.class_button_frame, text="Terrace", command=partial(self.change_category, "t"))
-        self.terrace_button.pack(side="left", padx=5)
-        self.spontaneous_button = ttk.Button(self.class_button_frame, text="Spontaneous", command=partial(self.change_category, "s"))
-        self.spontaneous_button.pack(side="left", padx=5)
-        self.extensive_button = ttk.Button(self.class_button_frame, text="Extensive", command=partial(self.change_category, "e"))
-        self.extensive_button.pack(side="left", padx=5)
-        self.lawn_button = ttk.Button(self.class_button_frame, text="Lawn", command=partial(self.change_category, "l"))
-        self.lawn_button.pack(side="left", padx=5)
-        self.intensive_button = ttk.Button(self.class_button_frame, text="Intensive", command=partial(self.change_category, "i"))
-        self.intensive_button.pack(side="left", padx=5)"""
 
         # Key binding
         #   _samples navigation
@@ -245,17 +225,6 @@ class ImageViewer:
             return
         self.sample_pos = (self.sample_pos + 1)  % len(self.dataset_to_show)  # Loop around
         self.sample_index = self.dataset_to_show.index[self.sample_pos]
-        """while self.dataset_to_show.index[sample_pos] not in self.dataset_to_show.index:
-            sample_pos = (sample_pos + 1)  % len(self.dataset_to_show)  # Loop around"""
-        """while self.frac_col_val_to_lbl[str(self.dataset_to_show.loc[self.sample_index, self.frac_col])] not in self.shown_cat:
-            self.sample_index = (self.sample_index + 1) % (self.dataset_to_show.index[-1] + 1)  # Loop around"""
-        show_image(self)
-        # self.sample_index = (self.sample_index + 1) % len(self.dataset_to_show)  # Loop around
-        # self.sample_index = (self.sample_index + 1) % (self.dataset_to_show.index[-1] + 1)  # Loop around
-        # while  self.sample_index not in list(self.dataset_to_show.index):
-        #     self.sample_index = (self.sample_index + 1) % (self.dataset_to_show.index[-1] + 1)  # Loop around
-        # while self.frac_col_val_to_lbl[str(self.dataset_to_show.loc[self.sample_index, self.frac_col])] not in self.shown_cat:
-        #     self.sample_index = (self.sample_index + 1) % (self.dataset_to_show.index[-1] + 1)  # Loop around
         show_image(self)
         self.update_infos()
 
@@ -265,11 +234,6 @@ class ImageViewer:
             return
         self.sample_pos = (self.sample_pos - 1)  % len(self.dataset_to_show)  # Loop around
         self.sample_index = self.dataset_to_show.index[self.sample_pos]
-        """self.sample_index = (self.sample_index - 1) % (self.dataset_to_show.index[-1] + 1)  # Loop around
-        while  self.sample_index not in list(self.dataset_to_show.index):
-            self.sample_index = (self.sample_index - 1) % (self.dataset_to_show.index[-1] + 1)  # Loop around
-        while self.frac_col_val_to_lbl[str(self.dataset_to_show.loc[self.sample_index, self.frac_col])] not in self.shown_cat:
-            self.sample_index = (self.sample_index - 1) % (self.dataset_to_show.index[-1] + 1)  # Loop around"""
         show_image(self)
         self.update_infos()
     
@@ -323,15 +287,6 @@ class ImageViewer:
 
         # update class buttons enabling-state
         for button in self.lst_buttons_category:
-            """if self.mode == 'correcter':
-                pass
-            elif self.mode == 'labelizer':
-                if cat_interest == "" and text != '-':
-                    button.config(state='normal')
-                else:
-
-            else:
-                pass"""
             text = button.cget('text')
             if cat_interest == "":
                 button.config(state='normal' if text != '-' else 'disabled')
@@ -339,25 +294,6 @@ class ImageViewer:
                 button.config(state='disabled')
             elif text in self.interest_col_val_to_lbl.values():
                 button.config(state='normal')
-        """map_class_to_button={
-            'b': self.bare_button,
-            't': self.terrace_button,
-            's': self.spontaneous_button,
-            'e': self.extensive_button,
-            'l': self.lawn_button,
-            'i': self.intensive_button,
-        }"""
-        """cat = ""
-        if self.mode == 'correcter':
-            cat = self.dataset_to_show.iloc[self.sample_index][self.frac_col]
-        elif self.mode == 'labelizer':
-            cat = self.dataset_to_show.iloc[self.sample_index]['class']
-        for key, button in map_class_to_button.items():
-            if key == cat:
-                button.config(state='disabled')
-            else:
-                button.config(state='enabled')"""
-
         if self.sample_index == self.num_dataset_to_show - 1:
             messagebox.showinfo("informaton", "Last sample reached !")
 
@@ -375,24 +311,7 @@ class ImageViewer:
 
             self.UnsavedChanges = True
             self.changes_log.append(f"Changing category of sample with index {self.sample_index} to '{cat}'")
-
-            """# update class buttons enabling-state
-            map_class_to_button={
-                'b': ['bare', self.bare_button],
-                't': ['terrace', self.terrace_button],
-                's': ['spontaneous', self.spontaneous_button],
-                'e': ['extensive', self.extensive_button],
-                'l': ['lawn', self.lawn_button],
-                'i': ['intensive', self.intensive_button],
-            }
-            for key, [label, button] in map_class_to_button.items():
-                if key == cat:
-                    button.config(state='disabled')
-                    self.title.config(text=f"sample {self.sample_index} - {label}")
-                else:
-                    button.config(state='normal')"""
             self.update_infos()
-            #self.root.after(300, self.show_next_image)
         button.config(command=partial(change_category, self, val))
 
     def select_sample(self, event):
