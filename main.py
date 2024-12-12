@@ -275,7 +275,11 @@ class ImageViewer:
         cat_interest = self.dataset_to_show.loc[self.sample_index, self.interest_col]
         interest_lbl = self.interest_col_val_to_lbl[cat_interest] if cat_interest != "" else '-'
         if self.mode == 'labelizer':
-            self.title.config(text=f"selector value: {self.frac_col_val_to_lbl[str(cat_selection)]} \t new value: {interest_lbl}")
+            select_lbl = self.frac_col_val_to_lbl[str(cat_selection)]
+            select_lbl = select_lbl[0:13] + '..' if len(select_lbl) > 15 else select_lbl
+            interest_lbl = interest_lbl[0:13] + '..' if len(interest_lbl) > 15 else interest_lbl
+            #interest_lbl = str(interest_lbl)[0:min(len(str(interest_lbl)), 10)]
+            self.title.config(text=f"select val: {select_lbl} | new val: {interest_lbl}")
         elif self.mode == 'correcter':
             self.title.config(text=f"value: {interest_lbl}")
         else:

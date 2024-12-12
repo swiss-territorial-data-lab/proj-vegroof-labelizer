@@ -309,7 +309,7 @@ def menu_mode_choice(self, mode_window):
             new_frame.pack_propagate(False)
         new_lbl = Label(new_frame, text=f"Val {i}", foreground='light grey', width=5, state='disabled')
         new_lbl.pack(side='left', padx=10)
-        new_textbox = Text(new_frame, width=10, height=1)
+        new_textbox = Text(new_frame, wrap='none', width=10, height=1)
         new_textbox.pack(side='left', padx=10, expand=False, fill=None)
         new_textbox.config(state='disabled', foreground='light grey')
         new_textbox.bind("<Tab>", focus_next)
@@ -339,7 +339,7 @@ def menu_mode_choice(self, mode_window):
     frame_interest_col_mapping_sub12.pack()
     lbl_interest_col_mapping_create = Label(frame_interest_col_mapping_sub12, text="Create column of interest: ", foreground='light grey')
     lbl_interest_col_mapping_create.pack(side='left', padx=10)
-    text_interest_col_create = Text(frame_interest_col_mapping_sub12, width=20, height=1, state='disabled', foreground='light grey')
+    text_interest_col_create = Text(frame_interest_col_mapping_sub12, wrap='none', width=20, height=1, state='disabled', foreground='light grey')
     text_interest_col_create.pack(side='right', padx=10)
     text_interest_col_create.bind("<Tab>", focus_next)
     text_interest_col_create.bind("<Shift-Tab>", focus_previous)
@@ -356,11 +356,11 @@ def menu_mode_choice(self, mode_window):
             new_frame = Frame(frame_interest_col_mapping_sub2, width=350, height=20)
             new_frame.pack()
             new_frame.pack_propagate(False)
-        new_textbox_val = Text(new_frame, width=5, height=1, foreground='light grey')
+        new_textbox_val = Text(new_frame, wrap='none', width=5, height=1, foreground='light grey')
         new_textbox_val.pack(side='left', padx=10, expand=False, fill=None)
         new_textbox_val.insert("1.0", f"Val {i}")
         new_textbox_val.config(state='disabled')
-        new_textbox_lbl = Text(new_frame, width=10, height=1, state='disabled', foreground='light grey')
+        new_textbox_lbl = Text(new_frame, wrap='none', width=10, height=1, state='disabled', foreground='light grey')
         new_textbox_lbl.pack(side='left', padx=5, expand=False, fill=None)
         new_textbox_val.bind("<Tab>", focus_next)
         new_textbox_lbl.bind("<Tab>",  focus_next)
@@ -519,6 +519,7 @@ def load(self, mode=0):
 
         # activate categorie buttons
         for idx, (val, label) in enumerate(self.interest_col_val_to_lbl.items()):
+            label = label[0:13] + '..' if len(label) > 15 else label
             self.lst_buttons_category[idx].config(text=label, state='normal')
             self.attribute_button_command(self.lst_buttons_category[idx], val)
 

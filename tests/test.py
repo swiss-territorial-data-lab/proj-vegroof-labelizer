@@ -1,54 +1,44 @@
 import tkinter as tk
 
-# Function to select all text when the Text widget gains focus
-def select_all(event):
-    # Select all text
-    event.widget.focus_set()  # Ensure the widget has focus
-    event.widget.tag_add("sel", "1.0", "end-1c")  # Add selection tag
-    return "break"  # Prevent default behavior
+class Tooltip:
+    def __init__(self, widget, text):
+        self.widget = widget
+        self.text = text
+        self.tip_window = None
 
-# Function to move focus to the next widget
-def focus_next(event):
-    event.widget.tk_focusNext().focus()
-    return "break"
+        # Bind mouse events to the widget
+        self.widget.bind("<Enter>", self.show_tooltip)
+        self.widget.bind("<Leave>", self.hide_tooltip)
 
-# Function to move focus to the previous widget with Shift+Tab
-def focus_previous(event):
-    event.widget.tk_focusPrev().focus()
-    return "break"
+    def show_tooltip(self, event):
+        # Create the tooltip window
+        if self.tip_window is not None:
+            return
 
-# Create the main Tkinter window
+        x = self.widget.winfo_rootx() + 10  # Slight offset to avoid overlap
+        y = self.widget.winfo_rooty() + 10
+        self.tip_window = tk.Toplevel(self.widget)
+        self.tip_window.wm_overrideredirect(True)  # Remove window decorations
+        self.tip_window.wm_geometry(f"+{x}+{y}")
+
+        # Add the text to the tooltip window
+        label = tk.Label(self.tip_window, text=self.text, background="yellow", relief="solid", borderwidth=1)
+        label.pack()
+
+    def hide_tooltip(self, event):
+        # Destroy the tooltip window
+        if self.tip_window:
+            self.tip_window.destroy()
+            self.tip_window = None
+
+# Example usage
 root = tk.Tk()
+root.title("Tooltip Example")
 
-# Create multiple Text widgets
-text1 = tk.Text(root, height=5, width=40)
-text2 = tk.Text(root, height=5, width=40)
-text3 = tk.Text(root, height=5, width=40)
+# Create a label with a tooltip
+label = tk.Label(root, text="Hover over me!", font=("Arial", 14))
+label.pack(pady=20, padx=20)
 
-# Add some default text
-text1.insert("1.0", "This is Text 1.")
-text2.insert("1.0", "This is Text 2.")
-text3.insert("1.0", "This is Text 3.")
+tooltip = Tooltip(label, "This is some helpful information.")
 
-# Pack the widgets
-text1.pack(pady=5)
-text2.pack(pady=5)
-text3.pack(pady=5)
-
-# Bind the <<FocusIn>> event to select all text
-text1.bind("<FocusIn>", select_all)
-text2.bind("<FocusIn>", select_all)
-text3.bind("<FocusIn>", select_all)
-
-# Bind the <Tab> key to focus_next function
-text1.bind("<Tab>", focus_next)
-text2.bind("<Tab>", focus_next)
-text3.bind("<Tab>", focus_next)
-
-# Bind Shift+Tab to move focus backward
-text1.bind("<Shift-Tab>", focus_previous)
-text2.bind("<Shift-Tab>", focus_previous)
-text3.bind("<Shift-Tab>", focus_previous)
-
-# Run the Tkinter event loop
 root.mainloop()
