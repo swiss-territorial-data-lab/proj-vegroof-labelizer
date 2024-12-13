@@ -313,6 +313,7 @@ def menu_mode_choice(self, mode_window):
         new_textbox.pack(side='left', padx=10, expand=False, fill=None)
         new_textbox.config(state='disabled', foreground='light grey')
         new_textbox.bind("<Tab>", focus_next)
+        new_textbox.bind("<Return>",  focus_next)
         new_textbox.bind("<Shift-Tab>", focus_previous)
         lst_vals_select_col_val.append(new_lbl)
         lst_vals_select_col_lbl.append(new_textbox)
@@ -364,6 +365,8 @@ def menu_mode_choice(self, mode_window):
         new_textbox_lbl.pack(side='left', padx=5, expand=False, fill=None)
         new_textbox_val.bind("<Tab>", focus_next)
         new_textbox_lbl.bind("<Tab>",  focus_next)
+        new_textbox_lbl.bind("<Return>",  focus_next)
+        new_textbox_val.bind("<Return>",  focus_next)
         new_textbox_val.bind("<Shift-Tab>", focus_previous)
         new_textbox_lbl.bind("<Shift-Tab>",  focus_previous)
         new_textbox_val.bind("<FocusIn>", select_all)
@@ -373,6 +376,7 @@ def menu_mode_choice(self, mode_window):
     # Add ok button
     ok_button = ttk.Button(mode_window, text='OK', command=partial(ok_button_pressed, return_value))
     ok_button.pack(pady=15)
+    ok_button.bind("<Return>",  partial(ok_button_pressed, return_value))
 
     # bindings
     combobox_select_col.bind("<<ComboboxSelected>>", select_col_selection)
@@ -640,7 +644,7 @@ def order(self):
             by=[self.order_var], 
             axis=0, 
             ascending= self.order_asc)
-        self.show_image()
+        #self.show_image()
         self.update_infos()
         window.destroy()
 

@@ -308,10 +308,10 @@ class ImageViewer:
             if self.mode == 'correcter':
                 self.new_dataset.loc[self.sample_index, self.frac_col] = cat
                 self.dataset_to_show.loc[self.sample_index, self.frac_col] = cat
-                if self.frac_col_val_to_lbl[str(cat)] not in self.shown_cat:
+                """if self.frac_col_val_to_lbl[str(cat)] not in self.shown_cat:
                     self.dataset_to_show = self.dataset_to_show.drop(self.sample_index)
                     self.sample_index = self.dataset_to_show.index[self.sample_pos]
-                    self.show_image()
+                    self.show_image()"""
 
             self.UnsavedChanges = True
             self.changes_log.append(f"Changing category of sample with index {self.sample_index} to '{cat}'")
