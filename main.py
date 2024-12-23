@@ -4,12 +4,12 @@ from tkinter import Tk, Menu, Label, Button, Frame, font, filedialog, messagebox
 from tkinter import ttk
 from PIL import Image, ImageTk
 import numpy as np
-#import fiona # for .exe creation
 import geopandas as gpd
 import rasterio
 from rasterio.mask import mask
 from functools import partial
 from src.menu_utils import *
+from src.image_utils import show_image, zoom, drag_image, start_drag, update_image
 
 
 class ImageViewer:
@@ -18,35 +18,38 @@ class ImageViewer:
         self.root = root
         self.polygon_path = ""
         self.raster_path = ""
-        self.roof_index = 0
-        self.num_roofs_to_show = 0
-        self.roofs = gpd.GeoDataFrame()
-        self.new_roofs = gpd.GeoDataFrame()
-        self.roofs_to_show = gpd.GeoDataFrame()
+        self.sample_index = 0
+        self.sample_pos = 0
+        self.num_dataset_to_show = 0
+        self.dataset = gpd.GeoDataFrame()
+        self.new_dataset = gpd.GeoDataFrame()
+        self.dataset_to_show = gpd.GeoDataFrame()
+        self.old_crs = ""
+        self.new_crs = ""
         self.list_rasters_src = []
         self.changes_log = []
-        self.egid = 0
         self.shown_cat = []
+        self.id_cols = []
         self.shown_meta = []
         self.infos_files = {
             'Polygons loc': '-',
             'Rasters loc': '-',
-            'Roof shown': '0/0',
+            'sample shown': '0/0',
         }
 
-        # _ ordering variables
+        #   _ordering variables and metadata
         self.order_var = None
         self.order_asc = True
-
-        self.label_to_class = {}
-        self.class_to_label = {}
-
         self.metadata = {}
 
-        # _ input variables
-        self.input_class_name = ""
+        #   _input variables
+        self.frac_col = ""
+        self.interest_col = ""
+        self.frac_col_lbl_to_val = {}
+        self.frac_col_val_to_lbl = {}
+        self.interest_col_lbl_to_val = {}
+        self.interest_col_val_to_lbl = {}
         self.mode = ""
-        #self.input_bin_class_values = {}
 
         # Set a custom font style for the app
         self.custom_font = font.Font(family="Helvetica", size=10, weight="bold")
@@ -62,7 +65,7 @@ class ImageViewer:
         # Create the menu
         menu_bar = Menu(root)
         
-        # _ add loading menu
+        #   _add loading menu
         load_menu = Menu(menu_bar, tearoff=0)
         load_menu.add_command(label='Polygons', command=partial(load, self, 1))
         load_menu.add_command(label='Rasters', command=partial(load, self, 2))
@@ -70,16 +73,16 @@ class ImageViewer:
         load_menu.add_command(label='From save', command=partial(load, self, 3))
         menu_bar.add_cascade(label='Load', menu=load_menu)
 
-        # _ add selection of categories and metadata to show
+        #   _add selection of categories and metadata to show
         select_menu = Menu(menu_bar, tearoff=0)
         select_menu.add_command(label="categories to show", command=partial(open_list_cat, self))
         select_menu.add_command(label="metadata to show", command=partial(open_list_meta, self))
         menu_bar.add_cascade(label='Select', menu=select_menu)
 
-        # _ add ordering
+        #   _add ordering
         menu_bar.add_command(label="Order", command=partial(order, self))
 
-        # _ add save and exit options
+        #   _add save and exit options
         menu_bar.add_command(label='Save', command=partial(save, self))
         menu_bar.add_command(label='Exit', command=partial(exit, self))
 
@@ -119,7 +122,19 @@ class ImageViewer:
         self.title.place(x=20,y=80, width=520)
         
         # Display image and image info
-        self.image = Label(root)
+        self.current_zoom = 1.0  # Initial zoom level
+        self.initial_zoom = 0.0
+        self.offset_x = 0
+        self.offset_y = 0
+
+        # Get the image dimensions
+        img_dim = 512
+        self.img_width, self.img_height = (img_dim, img_dim)
+        self.image = Canvas(root, width=self.img_width, height=self.img_height)
+        self.image_id = 0
+        self.original_image = None
+        self.display_image = None
+        self.margin_around_image = 50
         self.image.place(x=20, y=120)
         img_info_font = font.Font(family="Helvetica", size=12, weight="bold", slant="italic")
         self.infos_sample = Label(root, text="",
@@ -131,13 +146,13 @@ class ImageViewer:
         )
         self.infos_sample.place(x=540, y=120)
 
-        # set the roof index selector and tot roofs
-        label_roof_index_1 = Label(root, text="Go to sample : ", font=file_info_label_font, fg="#ecf0f1", bg="#2c3e50", anchor="center", justify="left")
-        label_roof_index_1.place(x=610, y=690)
-        self.roof_index_combobox = ttk.Combobox(root, values='-')
-        self.roof_index_combobox.set("0")  # Texte par défaut
-        self.roof_index_combobox.place(x=720,y=690, width=60)
-        self.roof_index_combobox.bind("<<ComboboxSelected>>", self.select_sample)
+        # set the sample index selector and tot dataset
+        label_sample_index_1 = Label(root, text="Go to sample : ", font=file_info_label_font, fg="#ecf0f1", bg="#2c3e50", anchor="center", justify="left")
+        label_sample_index_1.place(x=610, y=690)
+        self.sample_index_combobox = ttk.Combobox(root, values='-')
+        self.sample_index_combobox.set("0")  # Texte par défaut
+        self.sample_index_combobox.place(x=720,y=690, width=60)
+        self.sample_index_combobox.bind("<<ComboboxSelected>>", self.select_sample)
 
         # Set the frames of class buttons
         self.class_button_frame = Frame(root)
@@ -157,20 +172,14 @@ class ImageViewer:
         self.next_button.pack(side="right", padx=20)
 
         # Create class buttons
-        self.bare_button = ttk.Button(self.class_button_frame, text="Bare", command=partial(self.change_category, "b"))
-        self.bare_button.pack(side="left", padx=5)
-        self.terrace_button = ttk.Button(self.class_button_frame, text="Terrace", command=partial(self.change_category, "t"))
-        self.terrace_button.pack(side="left", padx=5)
-        self.spontaneous_button = ttk.Button(self.class_button_frame, text="Spontaneous", command=partial(self.change_category, "s"))
-        self.spontaneous_button.pack(side="left", padx=5)
-        self.extensive_button = ttk.Button(self.class_button_frame, text="Extensive", command=partial(self.change_category, "e"))
-        self.extensive_button.pack(side="left", padx=5)
-        self.lawn_button = ttk.Button(self.class_button_frame, text="Lawn", command=partial(self.change_category, "l"))
-        self.lawn_button.pack(side="left", padx=5)
-        self.intensive_button = ttk.Button(self.class_button_frame, text="Intensive", command=partial(self.change_category, "i"))
-        self.intensive_button.pack(side="left", padx=5)
+        self.lst_buttons_category = []
+        for i in range(6):
+            new_button = ttk.Button(self.class_button_frame, text="-", state='disabled')
+            new_button.pack(side="left", padx=5)
+            self.lst_buttons_category.append(new_button)
 
-        # key mapping
+        # Key binding
+        #   _samples navigation
         root.bind('a', lambda event: self.show_previous_image())
         root.bind('d', lambda event: self.show_next_image())
         root.bind('<Left>', lambda event: self.show_previous_image())
@@ -178,12 +187,18 @@ class ImageViewer:
         root.bind('<space>', lambda event: self.show_next_image())
         root.bind('<Control-s>', lambda event: save(self))
 
+        #   _image navigation (drag & zoom)
+        self.image.bind("<MouseWheel>",lambda event:  zoom(self, event))
+        self.image.bind("<B1-Motion>",lambda event:  drag_image(self, event))
+        self.image.bind("<Button-1>",lambda event:  start_drag(self, event))
+
+
         # temp-------------------
         """self.polygon_path = "D:/GitHubProjects/STDL_sample_labelizer/data/sources/inf_binary_LR_RF.gpkg"
         self.raster_path = "D:/GitHubProjects/STDL_sample_labelizer/data/sources/inference"
-        self.roofs = gpd.read_file(self.polygon_path)
-        self.new_roofs = gpd.read_file(self.polygon_path)
-        self.roofs_to_show = gpd.read_file(self.polygon_path)
+        self.dataset = gpd.read_file(self.polygon_path)
+        self.new_dataset = gpd.read_file(self.polygon_path)
+        self.dataset_to_show = gpd.read_file(self.polygon_path)
         for r, d, f in os.walk(self.raster_path):
                 for file in f:
                     if file.endswith('.tif'):
@@ -191,180 +206,124 @@ class ImageViewer:
                         file_src = file_src.replace('\\','/')
                         self.list_rasters_src.append(file_src)
         self.mode = 'labelizer'
-        self.input_class_name='pred'
-        self.shown_cat = list(self.new_roofs[self.input_class_name].unique())
+        self.frac_col='pred'
+        self.shown_cat = list(self.new_dataset[self.frac_col].unique())
         self.update_infos()"""
         # -----------------------
-
-        self.show_image()
+        
+        show_image(self)
    
     def show_image(self):
-        if len(self.list_rasters_src) == 0 or len(self.roofs_to_show) == 0:
-            image = Image.open("./src/no_image.png").resize((512, 512))
-            self.photo = ImageTk.PhotoImage(image)
-            self.image.config(image=self.photo)
-            self.title.config(text="No sample to display")
-            return
-
-        # get image from polygon and rasters
-        while self.label_to_class[self.roofs_to_show.iloc[self.roof_index][self.input_class_name]] not in self.shown_cat:
-            self.roof_index += 1
-        roof = self.roofs_to_show.iloc[self.roof_index]
-        self.egid = roof.EGID
-        cat = roof[self.input_class_name]
-        geom = roof.geometry
-
-        matching_rasters = []
-        matching_images = []
-        for raster_src in self.list_rasters_src:
-            raster = rasterio.open(raster_src)
-            try:
-                img_arr, _ = mask(raster, [geom], crop=True)
-            except ValueError:
-                continue
-            else:
-                matching_rasters.append(raster)
-                matching_images.append(img_arr)
-
-        # test if polygon match with one or multiple rasters:    
-        if len(matching_rasters) == 0:
-            image = Image.open("./src/no_image.png").resize((512, 512))
-            self.photo = ImageTk.PhotoImage(image)
-            self.image.config(image=self.photo)
-            self.title.config(text=str(int(self.egid)) + ' - ' + self.label_to_class[cat])
-            return
-        elif len(matching_rasters) == 1:
-            img_arr = matching_images[0]
-        else:
-            img_size_max = np.sum(matching_images[0].shape)
-            img_arr = matching_images[0]
-            for img in matching_images:
-                if np.sum(img.shape) > img_size_max:
-                    img_size_max = np.sum(img.shape)
-                    img_arr = img
-
-        # transform if image is in 16bits:
-        if img_arr.dtype == 'uint16':
-            img_arr = (img_arr/np.max(img_arr) * 255).astype('uint8')
-
-        # show results
-        img_arr = np.moveaxis(img_arr[1:4,...], 0, 2)
-        image = Image.fromarray(img_arr)
-
-        # _resize image
-        max_size = np.max(img_arr.shape[:2])
-        ratio = 512 / max_size
-        new_size = np.flip((np.array(img_arr.shape[0:2]) * ratio).astype(int))
-        image_resized = np.array(image.resize(new_size))  # Resize for display
-
-        # _add padding
-        min_axis = np.argmin(image_resized.shape[:2])
-        min_size = np.min(image_resized.shape[:2])
-        padding_size = int((512 - min_size)/2)
-        padding = [(padding_size, padding_size), (0, 0), (0, 0)] if min_axis == 0 else [(0, 0), (padding_size, padding_size), (0, 0)]
-        padded_image = np.pad(image_resized,padding, mode='constant')
-        
-        # control sizes
-        for ax in range(2):
-            while padded_image.shape[ax] < 512:
-                additional_padding = np.zeros((1,padded_image.shape[1],3)) if ax == 0 else np.zeros((padded_image.shape[0], 1,3))
-                padded_image = np.concatenate((padded_image, additional_padding), axis=ax)
-
-        # _show image and title
-        image_final = Image.fromarray(np.uint8(padded_image))
-        self.photo = ImageTk.PhotoImage(image_final)
-        self.title.config(text=str(int(self.egid)) + ' - ' + self.label_to_class[cat])
-        self.image.config(image=self.photo)
+        show_image(self)
+    
+    def update_image(self):
+        update_image(self)
 
     def show_next_image(self):
-        self.roof_index = (self.roof_index + 1) % len(self.roofs_to_show)  # Loop around
-        while self.label_to_class[self.roofs_to_show.iloc[self.roof_index][self.input_class_name]] not in self.shown_cat:
-            self.roof_index = (self.roof_index + 1) % len(self.roofs_to_show)  # Loop around
-        self.show_image()
+        if self.num_dataset_to_show == 0:
+            show_image(self)
+            return
+        self.sample_pos = (self.sample_pos + 1)  % len(self.dataset_to_show)  # Loop around
+        self.sample_index = self.dataset_to_show.index[self.sample_pos]
+        show_image(self)
         self.update_infos()
 
     def show_previous_image(self):
-        self.roof_index = (self.roof_index - 1) % len(self.roofs_to_show)  # Loop around
-        while self.label_to_class[self.roofs_to_show.iloc[self.roof_index][self.input_class_name]] not in self.shown_cat:
-            self.roof_index = (self.roof_index - 1) % len(self.roofs_to_show)  # Loop around
-        self.show_image()
+        if self.num_dataset_to_show == 0:
+            show_image()
+            return
+        self.sample_pos = (self.sample_pos - 1)  % len(self.dataset_to_show)  # Loop around
+        self.sample_index = self.dataset_to_show.index[self.sample_pos]
+        show_image(self)
         self.update_infos()
     
     def update_infos(self):
         # update files info
-        self.num_roofs_to_show = len(self.roofs_to_show)
-        self.infos_files['Roof shown'] = f'{self.roof_index + 1} / {self.num_roofs_to_show}'
+        self.num_dataset_to_show = len(self.dataset_to_show)
+        index_pos = 0
+        if self.num_dataset_to_show > 0:
+            index_pos = self.dataset_to_show.index.get_loc(self.sample_index)
+        self.infos_files['sample shown'] = f'{min([index_pos + 1, self.num_dataset_to_show])} / {self.num_dataset_to_show}'
         self.infos_files['Polygons loc'] = self.polygon_path.split('/')[-1] if self.polygon_path != None else '-'
         self.infos_files['Rasters loc'] = self.raster_path.split('/')[-1] if self.raster_path != None else '-'
         new_text = '\n'.join([key + ': ' + str(val) for key, val in self.infos_files.items()])
         self.label_infos_files.config(text=new_text)
 
+        # update navigation buttons
+        if self.num_dataset_to_show == 0:
+            self.next_button.config(state='disabled')
+            self.prev_button.config(state='disabled')
+            self.removeSample_button.config(state='disabled')
+        else:
+            self.next_button.config(state='normal')
+            self.prev_button.config(state='normal')
+            self.removeSample_button.config(state='normal')
+
         # security
-        if self.raster_path == "" or self.polygon_path == "" or len(self.roofs_to_show) == 0:
+        if self.raster_path == "" or self.polygon_path == "" or len(self.dataset_to_show) == 0:
             return
 
         # update metadata
         self.metadata = {}
         for meta in self.shown_meta:
-            self.metadata[meta] = self.roofs_to_show.loc[self.roofs_to_show.EGID == self.egid,meta].values[0]
+            self.metadata[meta] = str(self.dataset_to_show.loc[self.sample_index,meta])
         meta_text = '\n'.join([item[0] + ': ' + str(item[1]) for item in self.metadata.items()])
         self.infos_sample.config(text = meta_text if len(self.metadata) > 0 else '-')
 
+        # update image title
+        cat_selection = self.dataset_to_show.loc[self.sample_index, self.frac_col]
+        cat_interest = self.dataset_to_show.loc[self.sample_index, self.interest_col]
+        interest_lbl = self.interest_col_val_to_lbl[cat_interest] if cat_interest != "" else '-'
+        if self.mode == 'labelizer':
+            select_lbl = self.frac_col_val_to_lbl[str(cat_selection)]
+            select_lbl = select_lbl[0:13] + '..' if len(select_lbl) > 15 else select_lbl
+            interest_lbl = interest_lbl[0:13] + '..' if len(interest_lbl) > 15 else interest_lbl
+            #interest_lbl = str(interest_lbl)[0:min(len(str(interest_lbl)), 10)]
+            self.title.config(text=f"select val: {select_lbl} | new val: {interest_lbl}")
+        elif self.mode == 'correcter':
+            self.title.config(text=f"value: {interest_lbl}")
+        else:
+            self.title.config(text="No sample to display")
+
         # update sample selector
-        self.roof_index_combobox.config(values=[str(x + 1) for x in range(self.num_roofs_to_show)])
-        self.roof_index_combobox.set(str(self.roof_index + 1))
+        self.sample_index_combobox.config(values=[str(x + 1) for x in range(self.num_dataset_to_show)])
+        self.sample_index_combobox.set(str(self.dataset_to_show.index.get_loc(self.sample_index) + 1))
 
         # update class buttons enabling-state
-        map_class_to_button={
-            'b': self.bare_button,
-            't': self.terrace_button,
-            's': self.spontaneous_button,
-            'e': self.extensive_button,
-            'l': self.lawn_button,
-            'i': self.intensive_button,
-        }
-        cat = ""
-        if self.mode == 'correcter':
-            cat = self.roofs_to_show.iloc[self.roof_index][self.input_class_name]
-        elif self.mode == 'labelizer':
-            cat = self.roofs_to_show.iloc[self.roof_index]['class']
-        for key, button in map_class_to_button.items():
-            if key == cat:
+        for button in self.lst_buttons_category:
+            text = button.cget('text')
+            if cat_interest == "":
+                button.config(state='normal' if text != '-' else 'disabled')
+            elif text == self.interest_col_val_to_lbl[cat_interest]:
                 button.config(state='disabled')
-            else:
-                button.config(state='enabled')
-
-        if self.roof_index == self.num_roofs_to_show - 1:
+            elif text in self.interest_col_val_to_lbl.values():
+                button.config(state='normal')
+        if self.sample_index == self.num_dataset_to_show - 1:
             messagebox.showinfo("informaton", "Last sample reached !")
 
-    def change_category(self, cat):
-        self.new_roofs.loc[self.new_roofs['EGID'] == self.egid, 'class'] = cat
-        self.roofs_to_show.loc[self.roofs_to_show['EGID'] == self.egid, 'class'] = cat
-        self.UnsavedChanges = True
-        self.changes_log.append(f"Changing category of {self.egid} to '{cat}'")
+    def attribute_button_command(self, button: ttk.Button, val):
+        def change_category(self, cat):
+            self.new_dataset.loc[self.sample_index, self.interest_col] = cat
+            self.dataset_to_show.loc[self.sample_index, self.interest_col] = cat
+            if self.mode == 'correcter':
+                self.new_dataset.loc[self.sample_index, self.frac_col] = cat
+                self.dataset_to_show.loc[self.sample_index, self.frac_col] = cat
+                """if self.frac_col_val_to_lbl[str(cat)] not in self.shown_cat:
+                    self.dataset_to_show = self.dataset_to_show.drop(self.sample_index)
+                    self.sample_index = self.dataset_to_show.index[self.sample_pos]
+                    self.show_image()"""
 
-        # update class buttons enabling-state
-        map_class_to_button={
-            'b': ['bare', self.bare_button],
-            't': ['terrace', self.terrace_button],
-            's': ['spontaneous', self.spontaneous_button],
-            'e': ['extensive', self.extensive_button],
-            'l': ['lawn', self.lawn_button],
-            'i': ['intensive', self.intensive_button],
-        }
-        for key, [label, button] in map_class_to_button.items():
-            if key == cat:
-                button.config(state='disabled')
-                self.title.config(text=str(int(self.egid)) + ' - ' + label)
-            else:
-                button.config(state='normal')
-        self.update_infos()
-        #self.root.after(300, self.show_next_image)
-        
+            self.UnsavedChanges = True
+            self.changes_log.append(f"Changing category of sample with index {self.sample_index} to '{cat}'")
+            self.update_infos()
+        button.config(command=partial(change_category, self, val))
+
     def select_sample(self, event):
-        self.roof_index = int(self.roof_index_combobox.get()) - 1
-        self.show_image()
+        pos_sample = int(self.sample_index_combobox.get())
+        self.sample_index = self.dataset_to_show.index[pos_sample - 1]
+        show_image(self)
         self.update_infos()
+        
         
 def main():
     # Create the root window
