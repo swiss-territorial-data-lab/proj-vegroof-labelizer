@@ -1,46 +1,75 @@
-import tkinter as tk
-from tkinter import ttk
+import os
+import tempfile
+import multiprocessing
+import rasterio
+import numpy as np
+from time import sleep
 
-def set_widget_state(widget, state):
+def clip_and_store(task_queue, result_queue, temp_dir):
     """
-    Recursively sets the state of all widgets within a parent widget.
-    
-    Args:
-        widget: The parent widget (e.g., a frame).
-        state: The desired state ("disabled" or "normal").
+    Worker process to clip rasters and store them in a temp folder.
     """
-    # Loop through all child widgets of the current widget
-    for child in widget.winfo_children():
-        # If the widget supports a 'state' attribute, set it
-        print(child)
-        if isinstance(child, (tk.Entry, tk.Button, ttk.Combobox, ttk.Checkbutton, ttk.Radiobutton, tk.Text)):
-            child.configure(state=state)
-        # If the widget is a container (e.g., Frame), recurse into it
-        elif isinstance(child, tk.Frame):
-            set_widget_state(child, state)
+    while True:
+        task = task_queue.get()
+        if task == "STOP":
+            break
 
-# Example Usage
-root = tk.Tk()
-root.title("Recursive Disable Example")
+        raster_path, clip_coords, buffer_size = task
+        try:
+            with rasterio.open(raster_path) as src:
+                # Clip raster with given coordinates (add buffer if needed)
+                window = rasterio.windows.from_bounds(
+                    *clip_coords, src.transform
+                ).buffer(buffer_size, buffer_size)
 
-# Parent frame
-parent_frame = tk.Frame(root, relief=tk.SUNKEN, borderwidth=2, padx=10, pady=10)
-parent_frame.pack(padx=20, pady=20)
+                # Read the clipped data
+                clipped_image = src.read(window=window)
 
-# Create nested frames with widgets
-for i in range(3):
-    sub_frame = tk.Frame(parent_frame, relief=tk.RIDGE, borderwidth=2, padx=5, pady=5)
-    sub_frame.pack(pady=10, fill="x")
-    tk.Label(sub_frame, text=f"Frame {i+1}").pack(side="left")
-    tk.Entry(sub_frame).pack(side="left", padx=5)
-    tk.Button(sub_frame, text="Click Me").pack(side="left", padx=5)
+                # Save the clipped image in the temp folder
+                temp_file_path = os.path.join(temp_dir, f"clipped_{os.path.basename(raster_path)}.npy")
+                np.save(temp_file_path, clipped_image)
 
-# Add a button to disable all widgets in the parent frame
-disable_button = tk.Button(root, text="Disable All", command=lambda: set_widget_state(parent_frame, "disabled"))
-disable_button.pack(pady=10)
+                # Notify main process of the result
+                result_queue.put((raster_path, temp_file_path))
+        except Exception as e:
+            result_queue.put((raster_path, f"ERROR: {str(e)}"))
 
-# Add a button to enable all widgets in the parent frame
-enable_button = tk.Button(root, text="Enable All", command=lambda: set_widget_state(parent_frame, "normal"))
-enable_button.pack(pady=10)
+def main():
+    # Setup
+    raster_files = ["path_to_raster1.tif", "path_to_raster2.tif"]  # Example raster files
+    clip_coords = (xmin, ymin, xmax, ymax)  # Define your bounding box
+    buffer_size = 10  # Buffer size for clipping
 
-root.mainloop()
+    # Create a temporary folder for the buffer
+    temp_dir = tempfile.mkdtemp()
+
+    # Create queues for task communication
+    task_queue = multiprocessing.Queue()
+    result_queue = multiprocessing.Queue()
+
+    # Start the buffer process
+    buffer_process = multiprocessing.Process(target=clip_and_store, args=(task_queue, result_queue, temp_dir))
+    buffer_process.start()
+
+    # Send tasks to the buffer process
+    for raster_path in raster_files:
+        task_queue.put((raster_path, clip_coords, buffer_size))
+
+    # Retrieve results
+    for _ in raster_files:
+        raster_path, temp_file_path = result_queue.get()
+        if "ERROR" in temp_file_path:
+            print(f"Error processing {raster_path}: {temp_file_path}")
+        else:
+            print(f"Clipped image stored at: {temp_file_path}")
+
+    # Clean up
+    task_queue.put("STOP")
+    buffer_process.join()
+
+    # Optionally delete the temp directory after use
+    import shutil
+    shutil.rmtree(temp_dir)
+
+if __name__ == "__main__":
+    main()
