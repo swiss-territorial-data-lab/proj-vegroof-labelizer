@@ -15,116 +15,24 @@ import shutil
 from collections import deque
 from multiprocessing import Manager
 
-class Buffer():
-    def __init__(self, rasters_src, polygons_src):
-        self.rasters_src = rasters_src
-        self.polygons_src = polygons_src
-        self.buffer_front_max_size = 10
-        self.buffer_back_max_size = 5
-        self.buffer_size = 0
-        self.polygons = gpd.read_file(polygons_src)
-        self.list_rasters_src = []
-        self.shown_pos = 0
-        self.current_file_path = ""
-        self.margin_around_image = 50
 
-        self.buffer_front_size = multiprocessing.Value("i", 0)  # Integer shared variable
-        self.buffer_back_size = multiprocessing.Value("i", 0)  # Integer shared variable
-        self.loading_front_pos = multiprocessing.Value("i", 0)
-        self.loading_back_pos = multiprocessing.Value("i", 0)
-        self.buffer_process = None
-        #self.task_queue = multiprocessing.Queue(maxsize=self.buffer_max_size)
-        #self.result_queue = multiprocessing.Queue(maxsize=self.buffer_max_size)
-
-        manager = Manager()
-        self.task_front_list = manager.list()
-        self.result_front_list = manager.list()
-        self.task_back_list = manager.list()
-        self.result_back_list = manager.list()
-        self.temp_dir = None
-    
-    def start(self):
-        # Setup
-        for r, _, f in os.walk(self.rasters_src):
-            for file in f:
-                if file.endswith('.tif'):
-                    file_src = r + '/' + file
-                    file_src = file_src.replace('\\','/')
-                    self.list_rasters_src.append(file_src)
-
-        # Create a temporary folder for the buffer
-        self.temp_dir = tempfile.mkdtemp()
-
-        # Create queues for task communication
-        # task_queue = multiprocessing.Queue(maxsize=self.buffer_max_size)
-        # result_queue = multiprocessing.Queue(maxsize=self.buffer_max_size)
-
-        # sample_pos = multiprocessing.Value("i", 0)  # Integer shared variable
-
-        # self.start(task_queue, result_queue, temp_dir, buffer_size)
-
-        # Send tasks to the buffer process
-        # for pos in self.polygons.index:
-        #     if self.task_queue.qsize() >= self.buffer_max_size:
-        #         break
-        #     self.sample_pos = pos
-        #     self.task_queue.put(pos)
-        for pos in list(self.polygons.index)[:self.buffer_front_max_size]:
-            self.task_front_list.append(pos)
-        for pos in reversed(list(self.polygons.index)[-self.buffer_back_max_size::]):
-            self.task_back_list.append(pos)
-            
-        # Start the buffer processes
-        self.buffer_front_process = multiprocessing.Process(
-            target=self.clip_and_store, 
-            args=[self.task_front_list, 
-                  self.result_front_list, 
-                  self.buffer_front_size,
-                  self.loading_front_pos,
-                  'front'])
-        
-        self.buffer_back_process = multiprocessing.Process(
-            target=self.clip_and_store, 
-            args=[self.task_back_list, 
-                  self.result_back_list, 
-                  self.buffer_back_size,
-                  self.loading_back_pos,
-                  'back'])
-        
-        self.buffer_front_process.start()
-        self.buffer_back_process.start()
-
-        # for raster_path in raster_files:
-        #     task_queue.put((raster_path, clip_coords, buffer_size))
-
-        # Retrieve results
-        # while True:
-        #     result = result_queue.get()
-        #     if result == 'DONE':
-        #         print("DONE!")
-        #         break
-        #     sample_pos, temp_file_path = result
-        #     if "ERROR" in temp_file_path:
-        #         print(f"Error processing {sample_pos}: {temp_file_path}")
-        #     else:
-        #         print(f"Clipped image stored at: {temp_file_path}")
-
-    def clip_and_store(self, buffer_tasks, buffer_results, buffer_size, buffer_pos, direction):
+def clip_and_store(polygons, margin_around_image, list_rasters_src, buffer_tasks, buffer_results, buffer_size, buffer_max_size, buffer_pos, temp_dir, direction):
         """
         Worker process to clip rasters and store them in a temp folder.
         """
         while True:
-            task = self.task_queue.get()
+            # task = self.task_queue.get()
+            task = buffer_tasks.pop(0)
             if task == "STOP":
                 break
 
             sample_pos = task
-            print(f"===\n{sample_pos}\n===")
+            print(f"===\n{direction} - {sample_pos}\n===")
             try:
                 # Get image from polygon and rasters
                 #self.sample_pos = self.dataset_to_show.index.get_loc(self.sample_index)
                 # self.sample_pos = sample_pos
-                sample = self.polygons.loc[sample_pos]
+                sample = polygons.loc[sample_pos]
                 geometry = sample.geometry
 
                 # Define bounding box
@@ -143,10 +51,10 @@ class Buffer():
                 deltax = maxx - minx
                 deltay = maxy - miny
 
-                new_minx = minx - self.margin_around_image
-                new_maxx = maxx + self.margin_around_image
-                new_miny = miny - self.margin_around_image
-                new_maxy = maxy + self.margin_around_image
+                new_minx = minx - margin_around_image
+                new_maxx = maxx + margin_around_image
+                new_miny = miny - margin_around_image
+                new_maxy = maxy + margin_around_image
 
                 #   _correct to have a square bounding box
                 diff = abs(deltax - deltay)
@@ -167,7 +75,7 @@ class Buffer():
                 matching_rasters = []
                 matching_images = []
                 out_transform = {}
-                for raster_src in self.list_rasters_src:
+                for raster_src in list_rasters_src:
                     raster = rasterio.open(raster_src)
                     try:
                         img_arr, out_transform = mask(raster, [geom_large], crop=True)
@@ -192,53 +100,165 @@ class Buffer():
 
                 # Save image in tmp file
                 img = Image.fromarray(np.moveaxis(img_arr[1:,...], 0, 2))
-                temp_file_path = os.path.join(self.temp_dir, f"sample_{sample_pos}.png")
+                temp_file_path = os.path.join(temp_dir, f"sample_{sample_pos}.png")
                 img.save(temp_file_path)
 
                 # Notify main process of the result
-                self.result_queue.put((sample_pos, temp_file_path))
-                self.buffer_size.value += 1
+                # self.result_queue.put((sample_pos, temp_file_path))
+                buffer_results.append((sample_pos, temp_file_path))
+                # self.buffer_size.value += 1
+                buffer_size.value += 1
 
-                print("task queue size: ", self.task_queue.qsize())
-                print("result queue size: ", self.result_queue.qsize())
-                print("buffer size :", self.buffer_size.value)
-                print('---')
+                # print("task queue size: ", len(buffer_tasks))
+                # print("result queue size: ", len(buffer_results))
+                # print("buffer size :", buffer_size.value)
+                # print('---')
 
                 # if self.buffer_size >= self.buffer_max_size:
                 #     break
-                while self.buffer_size.value >= self.buffer_max_size:
+                while buffer_size.value >= buffer_max_size:
                     sleep(0.1)
 
-                # with rasterio.open(raster_path) as src:
-                #     # Clip raster with given coordinates (add buffer if needed)
-                #     window = rasterio.windows.from_bounds(
-                #         *clip_coords, src.transform
-                #     )#.buffer(buffer_size, buffer_size)
-
-                #     # Read the clipped data
-                #     clipped_image = src.read(window=window)
-
-                #     # Save the clipped image in the temp folder
-                #     temp_file_path = os.path.join(temp_dir, f"clipped_{os.path.basename(raster_path)}.npy")
-                #     np.save(temp_file_path, clipped_image)
-
-                #     # Notify main process of the result
-                #     result_queue.put((raster_path, temp_file_path))
             except Exception as e:
-                self.result_queue.put((sample_pos, f"ERROR: {str(e)}"))
+                # self.result_queue.put((sample_pos, f"ERROR: {str(e)}"))
+                buffer_results.append((sample_pos, f"ERROR: {str(e)}"))
+                print("error!")
         print('done!')
-        self.result_queue.put('DONE')
+        # self.result_queue.put('DONE')
+        buffer_results.append('DONE')
 
+
+class Buffer():
+    def __init__(self, rasters_src, polygons_src):
+        self.rasters_src = rasters_src
+        self.polygons_src = polygons_src
+        self.buffer_front_max_size = 10
+        self.buffer_back_max_size = 5
+        self.buffer_size = 0
+        self.polygons = gpd.read_file(polygons_src)
+        self.list_rasters_src = []
+        self.current_pos = 0
+        self.current_file_path = ""
+        self.margin_around_image = 50
+
+        self.buffer_front_size = multiprocessing.Value("i", 0)  # Integer shared variable
+        self.buffer_back_size = multiprocessing.Value("i", 0)  # Integer shared variable
+        self.loading_front_pos = multiprocessing.Value("i", 0)
+        self.loading_back_pos = multiprocessing.Value("i", 0)
+        self.buffer_front_process = None
+        self.buffer_back_process = None
+        self.buffer_front_max_pos = 0
+        self.buffer_back_max_pos = 0
+
+        manager = Manager()
+        self.task_front_list = manager.list()
+        self.result_front_list = manager.list()
+        self.task_back_list = manager.list()
+        self.result_back_list = manager.list()
+        self.temp_front_dir = None
+        self.temp_back_dir = None
+    
+    def start(self):
+        # Setup
+        for r, _, f in os.walk(self.rasters_src):
+            for file in f:
+                if file.endswith('.tif'):
+                    file_src = r + '/' + file
+                    file_src = file_src.replace('\\','/')
+                    self.list_rasters_src.append(file_src)
+
+        # Create a temporary folder for the buffer
+        self.temp_front_dir = tempfile.mkdtemp()
+        self.temp_back_dir = tempfile.mkdtemp()
+
+        # Create queues for task communication
+        # task_queue = multiprocessing.Queue(maxsize=self.buffer_max_size)
+        # result_queue = multiprocessing.Queue(maxsize=self.buffer_max_size)
+
+        # sample_pos = multiprocessing.Value("i", 0)  # Integer shared variable
+
+        # self.start(task_queue, result_queue, temp_dir, buffer_size)
+
+        # Send tasks to the buffer process
+        # for pos in self.polygons.index:
+        #     if self.task_queue.qsize() >= self.buffer_max_size:
+        #         break
+        #     self.sample_pos = pos
+        #     self.task_queue.put(pos)
+        for pos in list(self.polygons.index)[:self.buffer_front_max_size]:
+            self.task_front_list.append(pos)
+            self.buffer_front_max_pos = pos
+        for pos in reversed(list(self.polygons.index)[-self.buffer_back_max_size::]):
+            self.task_back_list.append(pos)
+            self.buffer_back_max_pos = pos
+
+        # Start the buffer processes
+        self.buffer_front_process = multiprocessing.Process(
+            target=clip_and_store, 
+            args=[self.polygons, 
+                  self.margin_around_image,
+                  self.list_rasters_src,
+                  self.task_front_list, 
+                  self.result_front_list, 
+                  self.buffer_front_size,
+                  self.buffer_front_max_size,
+                  self.loading_front_pos,
+                  self.temp_front_dir,
+                  'front'])
+        
+        self.buffer_back_process = multiprocessing.Process(
+            target=clip_and_store, 
+            args=[self.polygons, 
+                  self.margin_around_image,
+                  self.list_rasters_src,
+                  self.task_back_list, 
+                  self.result_back_list, 
+                  self.buffer_back_size,
+                  self.buffer_back_max_size,
+                  self.loading_back_pos,
+                  self.temp_back_dir,
+                  'back'])
+        
+        self.buffer_front_process.start()
+        self.buffer_back_process.start()
+
+        # for raster_path in raster_files:
+        #     task_queue.put((raster_path, clip_coords, buffer_size))
+
+        # Retrieve results
+        # while True:
+        #     result = result_queue.get()
+        #     if result == 'DONE':
+        #         print("DONE!")
+        #         break
+        #     sample_pos, temp_file_path = result
+        #     if "ERROR" in temp_file_path:
+        #         print(f"Error processing {sample_pos}: {temp_file_path}")
+        #     else:
+        #         print(f"Clipped image stored at: {temp_file_path}")
+
+    
     def move_forward(self):
         print("moving forward")
-        pos, temp_file_path = self.result_queue.get()
-        self.shown_pos = pos
-        self.buffer_size.value -= 1
-        self.sample_pos += 1
-        self.task_queue.put(self.sample_pos)
+        # change buffers
+        # pos, temp_file_path = self.result_queue.get()
+        pos, temp_file_path = self.result_front_list.pop(0)
+        new_current_path = self.temp_back_dir + '\\' + self.current_file_path.split('\\')[-1]
+        self.result_back_list.insert(0,(self.current_pos, new_current_path))
+        shutil.move(self.current_file_path, new_current_path)
+        _, old_temp_file = self.result_back_list.pop()
+        print
+        os.remove(old_temp_file)
+        self.buffer_front_max_pos += 1
+        self.buffer_back_max_pos -= 1
+        self.task_front_list.append(self.buffer_front_max_pos)
 
-        os.remove(self.current_file_path)
+        # update current pos
+        self.current_pos = pos
         self.current_file_path = temp_file_path
+        self.buffer_front_size.value -= 1
+        # self.task_queue.put(self.sample_pos)
+        print(list(self.result_back_list))
 
     def move_backward(self):
         pass
@@ -407,8 +427,10 @@ class App(tk.Tk):
             polygons_src=polygons_src,
             )
         self.buffer.start()
-
-        current_pos, current_file_path = self.buffer.result_queue.get()
+        while len(self.buffer.result_front_list) < 1:
+            sleep(0.1)
+        # current_pos, current_file_path = self.buffer.result_queue.get()
+        current_pos, current_file_path = self.buffer.result_front_list.pop(0)
         self.center_label.config(text=f"Sample {current_pos}")
         self.buffer.current_file_path = current_file_path
 
@@ -426,17 +448,21 @@ class App(tk.Tk):
         #self.center_label.config(text="Next button clicked")
 
     def update(self):
-        self.center_label.config(text=f"Sample {self.buffer.shown_pos}")
-        self.right_label.config(text=f"buffer : {self.buffer.buffer_size.value}/{self.buffer.buffer_max_size}")
+        self.center_label.config(text=f"Sample {self.buffer.current_pos}")
+        self.right_label.config(text=f"buffer : {self.buffer.buffer_front_size.value}/{self.buffer.buffer_front_max_size}")
+        self.left_label.config(text=f"buffer : {self.buffer.buffer_back_size.value}/{self.buffer.buffer_back_max_size}")
         self.after(self.update_interval, self.update)
 
     def exit(self):
         # Clean up
-        self.buffer.buffer_process.terminate()
-        self.buffer.buffer_process.join()
+        self.buffer.buffer_front_process.terminate()
+        self.buffer.buffer_front_process.join()
+        self.buffer.buffer_back_process.terminate()
+        self.buffer.buffer_back_process.join()
 
         # Optionally delete the temp directory after use
-        shutil.rmtree(self.buffer.temp_dir)
+        shutil.rmtree(self.buffer.temp_front_dir)
+        shutil.rmtree(self.buffer.temp_back_dir)
         self.quit()
 
 if __name__ == '__main__':
@@ -448,6 +474,8 @@ if __name__ == '__main__':
     # print(my_list)
     # a = my_list.pop()
     # print(a)
+    # b = my_list.pop(0)
+    # print(b)
     # print(my_list)
     # my_list.append(12)
     # print(my_list)
