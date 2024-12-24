@@ -1,4 +1,5 @@
 import os
+import glob
 import tempfile
 import multiprocessing
 import rasterio
@@ -16,7 +17,7 @@ from collections import deque
 from multiprocessing import Manager
 
 
-def clip_and_store(polygons, margin_around_image, list_rasters_src, buffer_tasks, buffer_results, buffer_size, buffer_max_size, buffer_pos, temp_dir, direction):
+def clip_and_store(polygons, margin_around_image, list_rasters_src, buffer_tasks, buffer_results, buffer_size, buffer_max_size, buffer_pos, temp_dir):
         """
         Worker process to clip rasters and store them in a temp folder.
         """
@@ -27,10 +28,10 @@ def clip_and_store(polygons, margin_around_image, list_rasters_src, buffer_tasks
                 break
 
             sample_pos = task
-            print(f"===\n{direction} - {sample_pos}\n===")
+            # print(f"===\n{direction} - {sample_pos}\n===")
             try:
                 # Get image from polygon and rasters
-                #self.sample_pos = self.dataset_to_show.index.get_loc(self.sample_index)
+                # self.sample_pos = self.dataset_to_show.index.get_loc(self.sample_index)
                 # self.sample_pos = sample_pos
                 sample = polygons.loc[sample_pos]
                 geometry = sample.geometry
@@ -104,36 +105,25 @@ def clip_and_store(polygons, margin_around_image, list_rasters_src, buffer_tasks
                 img.save(temp_file_path)
 
                 # Notify main process of the result
-                # self.result_queue.put((sample_pos, temp_file_path))
                 buffer_results.append((sample_pos, temp_file_path))
-                # self.buffer_size.value += 1
                 buffer_size.value += 1
 
-                # print("task queue size: ", len(buffer_tasks))
-                # print("result queue size: ", len(buffer_results))
-                # print("buffer size :", buffer_size.value)
-                # print('---')
-
-                # if self.buffer_size >= self.buffer_max_size:
-                #     break
                 while buffer_size.value >= buffer_max_size:
                     sleep(0.1)
 
             except Exception as e:
-                # self.result_queue.put((sample_pos, f"ERROR: {str(e)}"))
                 buffer_results.append((sample_pos, f"ERROR: {str(e)}"))
                 print("error!")
         print('done!')
-        # self.result_queue.put('DONE')
         buffer_results.append('DONE')
 
 
 class Buffer():
-    def __init__(self, rasters_src, polygons_src):
+    def __init__(self, rasters_src, polygons_src, buffer_front_max_size, buffer_back_max_size):
         self.rasters_src = rasters_src
         self.polygons_src = polygons_src
-        self.buffer_front_max_size = 10
-        self.buffer_back_max_size = 5
+        self.buffer_front_max_size = buffer_front_max_size
+        self.buffer_back_max_size = buffer_back_max_size
         self.buffer_size = 0
         self.polygons = gpd.read_file(polygons_src)
         self.list_rasters_src = []
@@ -171,24 +161,21 @@ class Buffer():
         self.temp_front_dir = tempfile.mkdtemp()
         self.temp_back_dir = tempfile.mkdtemp()
 
-        # Create queues for task communication
-        # task_queue = multiprocessing.Queue(maxsize=self.buffer_max_size)
-        # result_queue = multiprocessing.Queue(maxsize=self.buffer_max_size)
+        # # Create queues for task communication
+        # for pos in list(self.polygons.index)[:self.buffer_front_max_size]:
+        #     self.task_front_list.append(pos)
+        #     self.buffer_front_max_pos = pos
+        # for pos in reversed(list(self.polygons.index)[-self.buffer_back_max_size::]):
+        #     self.task_back_list.append(pos)
+        #     self.buffer_back_max_pos = pos
 
-        # sample_pos = multiprocessing.Value("i", 0)  # Integer shared variable
-
-        # self.start(task_queue, result_queue, temp_dir, buffer_size)
-
-        # Send tasks to the buffer process
-        # for pos in self.polygons.index:
-        #     if self.task_queue.qsize() >= self.buffer_max_size:
-        #         break
-        #     self.sample_pos = pos
-        #     self.task_queue.put(pos)
-        for pos in list(self.polygons.index)[:self.buffer_front_max_size]:
+        #   _create new list for task communication
+        for i in range(self.buffer_front_max_size):
+            pos = (self.current_pos + i)  % len(self.polygons)  # Loop around
             self.task_front_list.append(pos)
             self.buffer_front_max_pos = pos
-        for pos in reversed(list(self.polygons.index)[-self.buffer_back_max_size::]):
+        for i in range(1, self.buffer_back_max_size + 1):
+            pos = (self.current_pos - i)  % len(self.polygons)  # Loop around
             self.task_back_list.append(pos)
             self.buffer_back_max_pos = pos
 
@@ -204,7 +191,7 @@ class Buffer():
                   self.buffer_front_max_size,
                   self.loading_front_pos,
                   self.temp_front_dir,
-                  'front'])
+                  ])
         
         self.buffer_back_process = multiprocessing.Process(
             target=clip_and_store, 
@@ -217,7 +204,7 @@ class Buffer():
                   self.buffer_back_max_size,
                   self.loading_back_pos,
                   self.temp_back_dir,
-                  'back'])
+                  ])
         
         self.buffer_front_process.start()
         self.buffer_back_process.start()
@@ -239,29 +226,40 @@ class Buffer():
 
     
     def move_forward(self):
-        print("moving forward")
         # change buffers
-        # pos, temp_file_path = self.result_queue.get()
-        pos, temp_file_path = self.result_front_list.pop(0)
+        self.result_front_list.pop(0)
         new_current_path = self.temp_back_dir + '\\' + self.current_file_path.split('\\')[-1]
         self.result_back_list.insert(0,(self.current_pos, new_current_path))
         shutil.move(self.current_file_path, new_current_path)
         _, old_temp_file = self.result_back_list.pop()
-        print
+
         os.remove(old_temp_file)
-        self.buffer_front_max_pos += 1
-        self.buffer_back_max_pos -= 1
+        self.buffer_front_max_pos = (self.buffer_front_max_pos + 1)  % len(self.polygons)  # Loop around
+        self.buffer_back_max_pos = (self.buffer_back_max_pos + 1)  % len(self.polygons)  # Loop around
         self.task_front_list.append(self.buffer_front_max_pos)
 
         # update current pos
-        self.current_pos = pos
-        self.current_file_path = temp_file_path
+        self.current_pos, self.current_file_path = self.result_front_list[0]
+        # self.current_file_path = temp_file_path
         self.buffer_front_size.value -= 1
-        # self.task_queue.put(self.sample_pos)
-        print(list(self.result_back_list))
 
     def move_backward(self):
-        pass
+        # change buffers
+        pos, temp_file_path = self.result_back_list.pop(0)
+        new_current_path = self.temp_front_dir + '\\' + temp_file_path.split('\\')[-1]
+        self.result_front_list.insert(0,(pos, new_current_path))
+        shutil.move(temp_file_path, new_current_path)
+        _, old_temp_file = self.result_front_list.pop()
+
+        os.remove(old_temp_file)
+        self.buffer_back_max_pos = (self.buffer_back_max_pos - 1)  % len(self.polygons)  # Loop around
+        self.buffer_front_max_pos = (self.buffer_front_max_pos - 1)  % len(self.polygons)  # Loop around
+        self.task_back_list.append(self.buffer_back_max_pos)
+
+        # update current pos
+        self.current_pos = pos
+        self.current_file_path = new_current_path
+        self.buffer_back_size.value -= 1
 
     def create_frontward(self):
         pass
@@ -270,13 +268,45 @@ class Buffer():
         pass
 
     def reset(self):
-        pass
+        # empty temp folders
+        files = glob.glob(self.temp_front_dir)
+        for f in files:
+            os.remove(f)
+        files = glob.glob(self.temp_back_dir)
+        for f in files:
+            os.remove(f)
+        
+        # Update 
+        #   _clear
+        for i in range(len(self.task_front_list)):
+            del self.task_back_list[i]
+        for i in range(len(self.task_back_list)):
+            del self.task_back_list[i]
+        for i in range(len(self.result_front_list)):
+            del self.result_front_list[i]
+        for i in range(len(self.result_back_list)):
+            del self.result_back_list[i]
 
-    def delete(self):
-        pass
+        #   _create new list for task communication
+        for i in range(self.buffer_front_max_size):
+            pos = (self.current_pos + i)  % len(self.polygons)  # Loop around
+            self.task_front_list.append(pos)
+            self.buffer_front_max_pos = pos
+        for i in range(1, self.buffer_back_max_size + 1):
+            pos = (self.current_pos - i)  % len(self.polygons)  # Loop around
+            self.task_back_list.append(pos)
+            self.buffer_back_max_pos = pos
 
     def purge(self):
-        pass
+        # Clean up
+        self.buffer_front_process.terminate()
+        self.buffer_front_process.join()
+        self.buffer_back_process.terminate()
+        self.buffer_back_process.join()
+
+        # Optionally delete the temp directory after use
+        shutil.rmtree(self.temp_front_dir)
+        shutil.rmtree(self.temp_back_dir)
 
     def test(self):
 
@@ -425,6 +455,8 @@ class App(tk.Tk):
         self.buffer = Buffer(
             rasters_src=raster_src,
             polygons_src=polygons_src,
+            buffer_front_max_size=10,
+            buffer_back_max_size=5,
             )
         self.buffer.start()
         while len(self.buffer.result_front_list) < 1:
@@ -440,7 +472,7 @@ class App(tk.Tk):
 
     def on_prev(self):
         # Handle "Prev" button click
-        self.center_label.config(text="Prev button clicked")
+        self.buffer.move_backward()
 
     def on_next(self):
         # Handle "Next" button click
@@ -454,15 +486,7 @@ class App(tk.Tk):
         self.after(self.update_interval, self.update)
 
     def exit(self):
-        # Clean up
-        self.buffer.buffer_front_process.terminate()
-        self.buffer.buffer_front_process.join()
-        self.buffer.buffer_back_process.terminate()
-        self.buffer.buffer_back_process.join()
-
-        # Optionally delete the temp directory after use
-        shutil.rmtree(self.buffer.temp_front_dir)
-        shutil.rmtree(self.buffer.temp_back_dir)
+        self.buffer.purge()
         self.quit()
 
 if __name__ == '__main__':
