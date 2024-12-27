@@ -2,6 +2,8 @@ import os
 import glob
 import tempfile
 import multiprocessing
+import matplotlib.pyplot as plt
+from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
 import rasterio
 from rasterio.mask import mask
 from rasterio.plot import show
@@ -17,7 +19,7 @@ from collections import deque
 from multiprocessing import Manager
 
 
-def clip_and_store(polygons, margin_around_image, list_rasters_src, buffer_tasks, buffer_results, buffer_size, buffer_max_size, buffer_pos, temp_dir):
+def clip_and_store(polygons, margin_around_image, list_rasters_src, buffer_tasks, buffer_results, buffer_size, buffer_max_size, img_width, img_height, buffer_pos, temp_dir):
         """
         Worker process to clip rasters and store them in a temp folder.
         """
@@ -99,8 +101,63 @@ def clip_and_store(polygons, margin_around_image, list_rasters_src, buffer_tasks
                     resampling=rasterio.enums.Resampling.nearest
                     )
 
+                if img_arr.shape[0] == 4:
+                    img_arr = img_arr[1:4, ...]
+
+                # Plot the raster and overlay the original polygon
+                fig, ax = plt.subplots(figsize=(10, 10))
+
+                #   _display the clipped raster
+                show(img_arr, transform=out_transform, ax=ax, cmap="viridis")
+
+                coords_to_show = []
+                if geometry.geom_type == "Polygon":
+                    coords_to_show = [geometry.exterior.coords]
+                elif geometry.geom_type == "MultiPolygon":
+                    for polygon in geometry.geoms:
+                        coords_to_show = [polygon.exterior.coords for polygon in geometry.geoms]
+                for coords in coords_to_show:
+                    x, y = zip(*coords)
+                    ax.plot(x, y, color="yellow", linewidth=2, label="Original Polygon")
+                plt.axis('off')
+                plt.subplots_adjust(left=0, right=1, top=1, bottom=0)
+
+                #   _render the figure as a NumPy array
+                canvas = FigureCanvas(fig)
+                canvas.draw()
+                img_arr = np.frombuffer(canvas.tostring_rgb(), dtype='uint8')
+                img_arr = img_arr.reshape(canvas.get_width_height()[::-1] + (3,))
+                plt.close()
+
+                # transform if image is in 16bits:
+                if img_arr.dtype == 'uint16':
+                    img_arr = (img_arr/np.max(img_arr) * 255).astype('uint8')
+
+                # show results
+                image = Image.fromarray(img_arr)
+
+                #   _resize image
+                max_size = np.max(img_arr.shape[:2])
+                ratio = img_width / max_size
+                new_size = np.flip((np.array(img_arr.shape[0:2]) * ratio).astype(int))
+                image_resized = np.array(image.resize(new_size))  # Resize for display
+
+                #   _add padding
+                min_axis = np.argmin(image_resized.shape[:2])
+                min_size = np.min(image_resized.shape[:2])
+                padding_size = int((img_width - min_size)/2)
+                padding = [(padding_size, padding_size), (0, 0), (0, 0)] if min_axis == 0 else [(0, 0), (padding_size, padding_size), (0, 0)]
+                padded_image = np.pad(image_resized,padding, mode='constant')
+                
+                # control sizes
+                for ax in range(2):
+                    while padded_image.shape[ax] < img_width:
+                        additional_padding = np.zeros((1,padded_image.shape[1],3)) if ax == 0 else np.zeros((padded_image.shape[0], 1,3))
+                        padded_image = np.concatenate((padded_image, additional_padding), axis=ax)
+
                 # Save image in tmp file
-                img = Image.fromarray(np.moveaxis(img_arr[1:,...], 0, 2))
+                # img = Image.fromarray(np.moveaxis(img_arr[1:,...], 0, 2))
+                img = Image.fromarray(np.uint8(padded_image))
                 temp_file_path = os.path.join(temp_dir, f"sample_{sample_pos}.png")
                 img.save(temp_file_path)
 
@@ -189,6 +246,8 @@ class Buffer():
                   self.result_front_list, 
                   self.buffer_front_size,
                   self.buffer_front_max_size,
+                  512,
+                  512,
                   self.loading_front_pos,
                   self.temp_front_dir,
                   ])
@@ -202,6 +261,8 @@ class Buffer():
                   self.result_back_list, 
                   self.buffer_back_size,
                   self.buffer_back_max_size,
+                  512,
+                  512,
                   self.loading_back_pos,
                   self.temp_back_dir,
                   ])
@@ -230,7 +291,12 @@ class Buffer():
         self.result_front_list.pop(0)
         new_current_path = self.temp_back_dir + '\\' + self.current_file_path.split('\\')[-1]
         self.result_back_list.insert(0,(self.current_pos, new_current_path))
-        shutil.move(self.current_file_path, new_current_path)
+        try:
+            shutil.move(self.current_file_path, new_current_path)
+        except FileNotFoundError:
+            print("an error happened and a file lost itself. Restarting buffer..")
+            self.reset()
+            return
         _, old_temp_file = self.result_back_list.pop()
 
         os.remove(old_temp_file)
@@ -248,7 +314,12 @@ class Buffer():
         pos, temp_file_path = self.result_back_list.pop(0)
         new_current_path = self.temp_front_dir + '\\' + temp_file_path.split('\\')[-1]
         self.result_front_list.insert(0,(pos, new_current_path))
-        shutil.move(temp_file_path, new_current_path)
+        try:
+            shutil.move(temp_file_path, new_current_path)
+        except FileNotFoundError:
+            print("an error happened and a file lost itself. Restarting buffer..")
+            self.reset()
+            return
         _, old_temp_file = self.result_front_list.pop()
 
         os.remove(old_temp_file)
@@ -472,11 +543,19 @@ class App(tk.Tk):
 
     def on_prev(self):
         # Handle "Prev" button click
+        self.prev_button.config(state='disabled')
+        while self.buffer.buffer_back_size.value == 0:
+            sleep(0.1)
         self.buffer.move_backward()
+        self.prev_button.config(state='normal')
 
     def on_next(self):
         # Handle "Next" button click
+        self.next_button.config(state='disabled')
+        while self.buffer.buffer_front_size.value == 0:
+            sleep(0.1)
         self.buffer.move_forward()
+        self.next_button.config(state='normal')
         #self.center_label.config(text="Next button clicked")
 
     def update(self):
