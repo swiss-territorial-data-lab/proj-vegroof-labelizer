@@ -14,163 +14,170 @@ import geopandas as gpd
 import numpy as np
 from time import sleep
 import tkinter as tk
+from tkinter import ttk
 import shutil
 from collections import deque
 from multiprocessing import Manager
+import threading
 
 
-def clip_and_store(polygons, margin_around_image, list_rasters_src, buffer_tasks, buffer_results, buffer_size, buffer_max_size, img_width, img_height, buffer_pos, temp_dir):
+def clip_and_store(pause_event, polygons, margin_around_image, list_rasters_src, buffer_tasks, buffer_results, buffer_size, buffer_max_size, img_width, img_height, buffer_pos, temp_dir, buffer_type, buffer_max_pos):
         """
         Worker process to clip rasters and store them in a temp folder.
         """
         while True:
-            # task = self.task_queue.get()
-            task = buffer_tasks.pop(0)
-            if task == "STOP":
-                break
-
-            sample_pos = task
-            # print(f"===\n{direction} - {sample_pos}\n===")
             try:
-                # Get image from polygon and rasters
-                # self.sample_pos = self.dataset_to_show.index.get_loc(self.sample_index)
-                # self.sample_pos = sample_pos
-                sample = polygons.loc[sample_pos]
-                geometry = sample.geometry
+                if len(buffer_tasks) > 0:
+                    task = buffer_tasks[0]
+                    if task == "STOP":
+                        break
 
-                # Define bounding box
-                exterior_coords = []
-                #   _find coords of (sub-)polygons
-                if geometry.geom_type == "Polygon":
-                    exterior_coords.extend(geometry.exterior.coords)
-                elif geometry.geom_type == "MultiPolygon":
-                    for polygon in geometry.geoms:
-                        exterior_coords.extend(polygon.exterior.coords)
-                #   _find most-south/east/north/west points
-                minx = min([coord[0] for coord in exterior_coords])
-                maxx = max([coord[0] for coord in exterior_coords])
-                miny = min([coord[1] for coord in exterior_coords])
-                maxy = max([coord[1] for coord in exterior_coords])
-                deltax = maxx - minx
-                deltay = maxy - miny
+                    sample_pos = task
+                    sample = polygons.loc[sample_pos]
+                    geometry = sample.geometry
 
-                new_minx = minx - margin_around_image
-                new_maxx = maxx + margin_around_image
-                new_miny = miny - margin_around_image
-                new_maxy = maxy + margin_around_image
+                    # Define bounding box
+                    exterior_coords = []
 
-                #   _correct to have a square bounding box
-                diff = abs(deltax - deltay)
-                if deltax > deltay:
-                    new_miny -= diff // 2
-                    new_maxy += diff // 2
-                else:
-                    new_minx -= diff // 2
-                    new_maxx += diff // 2
+                    #   _find coords of (sub-)polygons
+                    if geometry.geom_type == "Polygon":
+                        exterior_coords.extend(geometry.exterior.coords)
+                    elif geometry.geom_type == "MultiPolygon":
+                        for polygon in geometry.geoms:
+                            exterior_coords.extend(polygon.exterior.coords)
+                            
+                    #   _find most-south/east/north/west points
+                    minx = min([coord[0] for coord in exterior_coords])
+                    maxx = max([coord[0] for coord in exterior_coords])
+                    miny = min([coord[1] for coord in exterior_coords])
+                    maxy = max([coord[1] for coord in exterior_coords])
+                    deltax = maxx - minx
+                    deltay = maxy - miny
 
-                geom_large = Polygon([
-                    (new_minx, new_miny),  # South-west
-                    (new_maxx, new_miny),  # Bottom-right
-                    (new_maxx, new_maxy),  # Top-right
-                    (new_minx, new_maxy),  # Top-left
-                    (new_minx, new_miny),  # Close the polygon
-                    ])
-                matching_rasters = []
-                matching_images = []
-                out_transform = {}
-                for raster_src in list_rasters_src:
-                    raster = rasterio.open(raster_src)
-                    try:
-                        img_arr, out_transform = mask(raster, [geom_large], crop=True)
-                    except ValueError:
-                        continue
+                    new_minx = minx - margin_around_image
+                    new_maxx = maxx + margin_around_image
+                    new_miny = miny - margin_around_image
+                    new_maxy = maxy + margin_around_image
+
+                    #   _correct to have a square bounding box
+                    diff = abs(deltax - deltay)
+                    if deltax > deltay:
+                        new_miny -= diff // 2
+                        new_maxy += diff // 2
                     else:
-                        matching_rasters.append(raster)
-                        matching_images.append(img_arr)
-                
-                # Test if polygon match with one or multiple rasters:    
-                if len(matching_rasters) == 0:
-                    raise ValueError("Polygon did not match any raster!")
-                elif len(matching_rasters) == 1:
-                    img_arr = matching_images[0]
+                        new_minx -= diff // 2
+                        new_maxx += diff // 2
+
+                    geom_large = Polygon([
+                        (new_minx, new_miny),  # South-west
+                        (new_maxx, new_miny),  # Bottom-right
+                        (new_maxx, new_maxy),  # Top-right
+                        (new_minx, new_maxy),  # Top-left
+                        (new_minx, new_miny),  # Close the polygon
+                        ])
+                    matching_rasters = []
+                    matching_images = []
+                    out_transform = {}
+                    for raster_src in list_rasters_src:
+                        raster = rasterio.open(raster_src)
+                        try:
+                            img_arr, out_transform = mask(raster, [geom_large], crop=True)
+                        except ValueError:
+                            continue
+                        else:
+                            matching_rasters.append(raster)
+                            matching_images.append(img_arr)
+                    
+                    # Test if polygon match with one or multiple rasters:    
+                    if len(matching_rasters) == 0:
+                        raise ValueError("Polygon did not match any raster!")
+                    elif len(matching_rasters) == 1:
+                        img_arr = matching_images[0]
+                    else:
+                        img_arr, out_transform = merge(
+                        sources=matching_rasters, 
+                        nodata=0, 
+                        bounds=geom_large.bounds,
+                        resampling=rasterio.enums.Resampling.nearest
+                        )
+
+                    if img_arr.shape[0] == 4:
+                        img_arr = img_arr[1:4, ...]
+
+                    # Plot the raster and overlay the original polygon
+                    fig, ax = plt.subplots(figsize=(10, 10))
+
+                    #   _display the clipped raster
+                    show(img_arr, transform=out_transform, ax=ax, cmap="viridis")
+
+                    coords_to_show = []
+                    if geometry.geom_type == "Polygon":
+                        coords_to_show = [geometry.exterior.coords]
+                    elif geometry.geom_type == "MultiPolygon":
+                        for polygon in geometry.geoms:
+                            coords_to_show = [polygon.exterior.coords for polygon in geometry.geoms]
+                    for coords in coords_to_show:
+                        x, y = zip(*coords)
+                        ax.plot(x, y, color="yellow", linewidth=2, label="Original Polygon")
+                    plt.axis('off')
+                    plt.subplots_adjust(left=0, right=1, top=1, bottom=0)
+
+                    #   _render the figure as a NumPy array
+                    canvas = FigureCanvas(fig)
+                    canvas.draw()
+                    img_arr = np.frombuffer(canvas.tostring_rgb(), dtype='uint8')
+                    img_arr = img_arr.reshape(canvas.get_width_height()[::-1] + (3,))
+                    plt.close()
+
+                    # transform if image is in 16bits:
+                    if img_arr.dtype == 'uint16':
+                        img_arr = (img_arr/np.max(img_arr) * 255).astype('uint8')
+
+                    # show results
+                    image = Image.fromarray(img_arr)
+
+                    #   _resize image
+                    max_size = np.max(img_arr.shape[:2])
+                    ratio = img_width / max_size
+                    new_size = np.flip((np.array(img_arr.shape[0:2]) * ratio).astype(int))
+                    image_resized = np.array(image.resize(new_size))  # Resize for display
+
+                    #   _add padding
+                    min_axis = np.argmin(image_resized.shape[:2])
+                    min_size = np.min(image_resized.shape[:2])
+                    padding_size = int((img_width - min_size)/2)
+                    padding = [(padding_size, padding_size), (0, 0), (0, 0)] if min_axis == 0 else [(0, 0), (padding_size, padding_size), (0, 0)]
+                    padded_image = np.pad(image_resized,padding, mode='constant')
+                    
+                    # control sizes
+                    for ax in range(2):
+                        while padded_image.shape[ax] < img_width:
+                            additional_padding = np.zeros((1,padded_image.shape[1],3)) if ax == 0 else np.zeros((padded_image.shape[0], 1,3))
+                            padded_image = np.concatenate((padded_image, additional_padding), axis=ax)
+
+                    # Save image in tmp file
+                    img = Image.fromarray(np.uint8(padded_image))
+                    temp_file_path = os.path.join(temp_dir, f"sample_{sample_pos}.png")
+                    img.save(temp_file_path)
+
+                    # Notify main process of the result
+                    buffer_results.append((sample_pos, temp_file_path))
+                    buffer_size.value += 1
+                    print(f"New sample in buffer {buffer_type}: {sample_pos}")
+                    del buffer_tasks[0]
                 else:
-                    img_arr, out_transform = merge(
-                    sources=matching_rasters, 
-                    nodata=0, 
-                    bounds=geom_large.bounds,
-                    resampling=rasterio.enums.Resampling.nearest
-                    )
-
-                if img_arr.shape[0] == 4:
-                    img_arr = img_arr[1:4, ...]
-
-                # Plot the raster and overlay the original polygon
-                fig, ax = plt.subplots(figsize=(10, 10))
-
-                #   _display the clipped raster
-                show(img_arr, transform=out_transform, ax=ax, cmap="viridis")
-
-                coords_to_show = []
-                if geometry.geom_type == "Polygon":
-                    coords_to_show = [geometry.exterior.coords]
-                elif geometry.geom_type == "MultiPolygon":
-                    for polygon in geometry.geoms:
-                        coords_to_show = [polygon.exterior.coords for polygon in geometry.geoms]
-                for coords in coords_to_show:
-                    x, y = zip(*coords)
-                    ax.plot(x, y, color="yellow", linewidth=2, label="Original Polygon")
-                plt.axis('off')
-                plt.subplots_adjust(left=0, right=1, top=1, bottom=0)
-
-                #   _render the figure as a NumPy array
-                canvas = FigureCanvas(fig)
-                canvas.draw()
-                img_arr = np.frombuffer(canvas.tostring_rgb(), dtype='uint8')
-                img_arr = img_arr.reshape(canvas.get_width_height()[::-1] + (3,))
-                plt.close()
-
-                # transform if image is in 16bits:
-                if img_arr.dtype == 'uint16':
-                    img_arr = (img_arr/np.max(img_arr) * 255).astype('uint8')
-
-                # show results
-                image = Image.fromarray(img_arr)
-
-                #   _resize image
-                max_size = np.max(img_arr.shape[:2])
-                ratio = img_width / max_size
-                new_size = np.flip((np.array(img_arr.shape[0:2]) * ratio).astype(int))
-                image_resized = np.array(image.resize(new_size))  # Resize for display
-
-                #   _add padding
-                min_axis = np.argmin(image_resized.shape[:2])
-                min_size = np.min(image_resized.shape[:2])
-                padding_size = int((img_width - min_size)/2)
-                padding = [(padding_size, padding_size), (0, 0), (0, 0)] if min_axis == 0 else [(0, 0), (padding_size, padding_size), (0, 0)]
-                padded_image = np.pad(image_resized,padding, mode='constant')
-                
-                # control sizes
-                for ax in range(2):
-                    while padded_image.shape[ax] < img_width:
-                        additional_padding = np.zeros((1,padded_image.shape[1],3)) if ax == 0 else np.zeros((padded_image.shape[0], 1,3))
-                        padded_image = np.concatenate((padded_image, additional_padding), axis=ax)
-
-                # Save image in tmp file
-                # img = Image.fromarray(np.moveaxis(img_arr[1:,...], 0, 2))
-                img = Image.fromarray(np.uint8(padded_image))
-                temp_file_path = os.path.join(temp_dir, f"sample_{sample_pos}.png")
-                img.save(temp_file_path)
-
-                # Notify main process of the result
-                buffer_results.append((sample_pos, temp_file_path))
-                buffer_size.value += 1
-
-                while buffer_size.value >= buffer_max_size:
-                    sleep(0.1)
+                    if buffer_size.value > buffer_max_size:
+                        os.remove(buffer_results[-1][1])
+                        del buffer_results[-1]
+                        buffer_size.value -= 1
+                    while buffer_size.value == buffer_max_size or pause_event.is_set():
+                        sleep(0.1)
 
             except Exception as e:
                 buffer_results.append((sample_pos, f"ERROR: {str(e)}"))
                 print("error!")
+            finally:
+                pass
         print('done!')
         buffer_results.append('DONE')
 
@@ -202,10 +209,15 @@ class Buffer():
         self.result_front_list = manager.list()
         self.task_back_list = manager.list()
         self.result_back_list = manager.list()
-        self.temp_front_dir = None
-        self.temp_back_dir = None
-    
-    def start(self):
+
+        # Create a temporary folder for the buffer
+        self.temp_front_dir = tempfile.mkdtemp()
+        self.temp_back_dir = tempfile.mkdtemp()
+
+        # Events to control the process
+        self.pause_event_front = multiprocessing.Event()
+        self.pause_event_back = multiprocessing.Event()
+
         # Setup
         for r, _, f in os.walk(self.rasters_src):
             for file in f:
@@ -213,19 +225,8 @@ class Buffer():
                     file_src = r + '/' + file
                     file_src = file_src.replace('\\','/')
                     self.list_rasters_src.append(file_src)
-
-        # Create a temporary folder for the buffer
-        self.temp_front_dir = tempfile.mkdtemp()
-        self.temp_back_dir = tempfile.mkdtemp()
-
-        # # Create queues for task communication
-        # for pos in list(self.polygons.index)[:self.buffer_front_max_size]:
-        #     self.task_front_list.append(pos)
-        #     self.buffer_front_max_pos = pos
-        # for pos in reversed(list(self.polygons.index)[-self.buffer_back_max_size::]):
-        #     self.task_back_list.append(pos)
-        #     self.buffer_back_max_pos = pos
-
+    
+    def start(self):
         #   _create new list for task communication
         for i in range(self.buffer_front_max_size):
             pos = (self.current_pos + i)  % len(self.polygons)  # Loop around
@@ -239,7 +240,8 @@ class Buffer():
         # Start the buffer processes
         self.buffer_front_process = multiprocessing.Process(
             target=clip_and_store, 
-            args=[self.polygons, 
+            args=[self.pause_event_front,
+                  self.polygons, 
                   self.margin_around_image,
                   self.list_rasters_src,
                   self.task_front_list, 
@@ -250,11 +252,14 @@ class Buffer():
                   512,
                   self.loading_front_pos,
                   self.temp_front_dir,
+                  'frontward',
+                  self.buffer_front_max_pos
                   ])
         
         self.buffer_back_process = multiprocessing.Process(
             target=clip_and_store, 
-            args=[self.polygons, 
+            args=[self.pause_event_back,
+                  self.polygons, 
                   self.margin_around_image,
                   self.list_rasters_src,
                   self.task_back_list, 
@@ -265,72 +270,71 @@ class Buffer():
                   512,
                   self.loading_back_pos,
                   self.temp_back_dir,
+                  'backward',
+                  self.buffer_back_max_pos
                   ])
         
         self.buffer_front_process.start()
         self.buffer_back_process.start()
 
-        # for raster_path in raster_files:
-        #     task_queue.put((raster_path, clip_coords, buffer_size))
-
-        # Retrieve results
-        # while True:
-        #     result = result_queue.get()
-        #     if result == 'DONE':
-        #         print("DONE!")
-        #         break
-        #     sample_pos, temp_file_path = result
-        #     if "ERROR" in temp_file_path:
-        #         print(f"Error processing {sample_pos}: {temp_file_path}")
-        #     else:
-        #         print(f"Clipped image stored at: {temp_file_path}")
-
     
-    def move_forward(self):
+    def move_forward(self, buttons):
         # change buffers
-        self.result_front_list.pop(0)
-        new_current_path = self.temp_back_dir + '\\' + self.current_file_path.split('\\')[-1]
-        self.result_back_list.insert(0,(self.current_pos, new_current_path))
+        error_occured = False
         try:
-            shutil.move(self.current_file_path, new_current_path)
-        except FileNotFoundError:
-            print("an error happened and a file lost itself. Restarting buffer..")
-            self.reset()
-            return
-        _, old_temp_file = self.result_back_list.pop()
+            old_pos, old_path = self.result_front_list.pop(0)  
+            self.current_pos, self.current_file_path = self.result_front_list[0]
+            self.buffer_front_size.value -= 1
+            new_back_path = self.temp_back_dir + '\\' + old_path.split('\\')[-1]
+            self.result_back_list.insert(0,(old_pos, new_back_path))
+            self.buffer_back_size.value += 1
+            shutil.move(old_path, new_back_path)
 
-        os.remove(old_temp_file)
-        self.buffer_front_max_pos = (self.buffer_front_max_pos + 1)  % len(self.polygons)  # Loop around
-        self.buffer_back_max_pos = (self.buffer_back_max_pos + 1)  % len(self.polygons)  # Loop around
-        self.task_front_list.append(self.buffer_front_max_pos)
+            if len(self.task_front_list) > 0:
+                self.task_front_list.append((self.task_front_list[-1]+1) % len(self.polygons))
+            else:
+                self.task_front_list.append((self.result_front_list[-1][0] + 1) % len(self.polygons))
+        except Exception as e:
+            print("An error happened :", e)
+            print("Restarting buffer..")
+            error_occured = True
+        finally:
+            if error_occured:
+                self.reset()
+            for button in buttons:
+                button.config(state='normal')
 
-        # update current pos
-        self.current_pos, self.current_file_path = self.result_front_list[0]
-        # self.current_file_path = temp_file_path
-        self.buffer_front_size.value -= 1
-
-    def move_backward(self):
+    def move_backward(self, buttons):
         # change buffers
-        pos, temp_file_path = self.result_back_list.pop(0)
-        new_current_path = self.temp_front_dir + '\\' + temp_file_path.split('\\')[-1]
-        self.result_front_list.insert(0,(pos, new_current_path))
+        error_occured = False
         try:
-            shutil.move(temp_file_path, new_current_path)
-        except FileNotFoundError:
-            print("an error happened and a file lost itself. Restarting buffer..")
-            self.reset()
-            return
-        _, old_temp_file = self.result_front_list.pop()
+            new_pos, new_path = self.result_back_list.pop(0)
+            # update current pos
+            self.current_pos = new_pos
+            self.buffer_back_size.value -= 1
+            new_current_path = self.temp_front_dir + '\\' + new_path.split('\\')[-1]
+            self.current_file_path = new_current_path
+            self.result_front_list.insert(0,(new_pos, new_current_path))
+            self.buffer_front_size.value += 1
+            shutil.move(new_path, new_current_path)
+            if len(self.task_back_list) > 0:
+                self.task_back_list.append((self.task_back_list[-1] - 1) % len(self.polygons))
+            else:
+                self.task_back_list.append((self.result_back_list[-1][0] - 1) % len(self.polygons))
 
-        os.remove(old_temp_file)
-        self.buffer_back_max_pos = (self.buffer_back_max_pos - 1)  % len(self.polygons)  # Loop around
-        self.buffer_front_max_pos = (self.buffer_front_max_pos - 1)  % len(self.polygons)  # Loop around
-        self.task_back_list.append(self.buffer_back_max_pos)
 
-        # update current pos
-        self.current_pos = pos
-        self.current_file_path = new_current_path
-        self.buffer_back_size.value -= 1
+        except Exception as e:
+            print("An error happened :", e)
+            print("Restarting buffer..")
+            error_occured = True
+        finally:
+            if error_occured:
+                self.reset()
+            # sleep(0.5)
+            # self.pause_event_front.clear()
+            # self.pause_event_back.clear()
+            for button in buttons:
+                button.config(state='normal')
 
     def create_frontward(self):
         pass
@@ -339,24 +343,29 @@ class Buffer():
         pass
 
     def reset(self):
-        # empty temp folders
-        files = glob.glob(self.temp_front_dir)
-        for f in files:
-            os.remove(f)
-        files = glob.glob(self.temp_back_dir)
-        for f in files:
-            os.remove(f)
+
+        # Pauses processes
+        self.pause_event_front.set()
+        self.pause_event_back.set()
+        self.buffer_front_process.join(timeout=2)
+        self.buffer_back_process.join(timeout=2)
+
+        # Empty temp folders
+        shutil.rmtree(self.temp_front_dir)
+        os.mkdir(self.temp_front_dir)
+        shutil.rmtree(self.temp_back_dir)
+        os.mkdir(self.temp_back_dir)
         
         # Update 
         #   _clear
         for i in range(len(self.task_front_list)):
-            del self.task_back_list[i]
+            del self.task_front_list[0]
         for i in range(len(self.task_back_list)):
-            del self.task_back_list[i]
+            del self.task_back_list[0]
         for i in range(len(self.result_front_list)):
-            del self.result_front_list[i]
+            del self.result_front_list[0]
         for i in range(len(self.result_back_list)):
-            del self.result_back_list[i]
+            del self.result_back_list[0]
 
         #   _create new list for task communication
         for i in range(self.buffer_front_max_size):
@@ -367,6 +376,16 @@ class Buffer():
             pos = (self.current_pos - i)  % len(self.polygons)  # Loop around
             self.task_back_list.append(pos)
             self.buffer_back_max_pos = pos
+
+        #   _reset size
+        self.buffer_front_size.value = 0
+        self.buffer_back_size.value = 0
+
+        # Resume processes
+        self.pause_event_front.clear()
+        self.pause_event_back.clear()
+        print("Restarted")
+
 
     def purge(self):
         # Clean up
@@ -508,6 +527,7 @@ class App(tk.Tk):
         self.prev_button = tk.Button(button_frame, text="Prev", command=self.on_prev)
         self.prev_button.pack(side=tk.LEFT, padx=10)
 
+        # self.next_button = ttk.Button(button_frame, text="Next", command=lambda:test(self.next_button))
         self.next_button = tk.Button(button_frame, text="Next", command=self.on_next)
         self.next_button.pack(side=tk.LEFT, padx=10)
 
@@ -533,7 +553,8 @@ class App(tk.Tk):
         while len(self.buffer.result_front_list) < 1:
             sleep(0.1)
         # current_pos, current_file_path = self.buffer.result_queue.get()
-        current_pos, current_file_path = self.buffer.result_front_list.pop(0)
+        # current_pos, current_file_path = self.buffer.result_front_list.pop(0)
+        current_pos, current_file_path = self.buffer.result_front_list[0]
         self.center_label.config(text=f"Sample {current_pos}")
         self.buffer.current_file_path = current_file_path
 
@@ -544,18 +565,24 @@ class App(tk.Tk):
     def on_prev(self):
         # Handle "Prev" button click
         self.prev_button.config(state='disabled')
-        while self.buffer.buffer_back_size.value == 0:
+        self.next_button.config(state='disabled')
+        while self.buffer.buffer_back_size.value == 1 or self.buffer.buffer_front_size.value == 1:
             sleep(0.1)
-        self.buffer.move_backward()
-        self.prev_button.config(state='normal')
+        thread = threading.Thread(target=self.buffer.move_backward, args=([self.prev_button, self.next_button],))
+        thread.start()
+        # self.buffer.move_backward()
+        # self.prev_button.config(state='normal')
 
     def on_next(self):
         # Handle "Next" button click
+        self.prev_button.config(state='disabled')
         self.next_button.config(state='disabled')
-        while self.buffer.buffer_front_size.value == 0:
+        while self.buffer.buffer_back_size.value == 1 or self.buffer.buffer_front_size.value == 1:
             sleep(0.1)
-        self.buffer.move_forward()
-        self.next_button.config(state='normal')
+        thread = threading.Thread(target=self.buffer.move_forward, args=([self.prev_button, self.next_button],))
+        thread.start()
+        # self.buffer.move_forward()
+        # self.next_button.config(state='normal')
         #self.center_label.config(text="Next button clicked")
 
     def update(self):
