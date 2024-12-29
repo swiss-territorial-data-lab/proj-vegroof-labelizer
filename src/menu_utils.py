@@ -4,6 +4,7 @@ import numpy as np
 import pickle
 import rasterio
 import pandas as pd
+from time import sleep
 from tkinter import Tk, Menu, Label, Button, Frame, Text, font, filedialog, messagebox, Checkbutton, Scrollbar, IntVar, Canvas,Toplevel
 from tkinter.scrolledtext import ScrolledText
 from tkinter import ttk
@@ -12,6 +13,7 @@ from ttkwidgets import CheckboxTreeview
 import geopandas as gpd
 from functools import partial
 from src.processing import show_confusion_matrix
+from src.buffer import Buffer
 
 
 def menu_mode_choice(self, mode_window):
@@ -517,16 +519,26 @@ def load(self, mode=0):
                 print(f"Original error: {e}")
 
     if self.polygon_path != "" and self.raster_path != "":
-        # attriute new crs
+        # Attriute new crs
         self.new_dataset = self.new_dataset.to_crs(crs=self.new_crs)
         self.dataset_to_show = self.dataset_to_show.to_crs(crs=self.new_crs)
 
-        # activate categorie buttons
+        # Activate categorie buttons
         for idx, (val, label) in enumerate(self.interest_col_val_to_lbl.items()):
             label = label[0:13] + '..' if len(label) > 15 else label
             self.lst_buttons_category[idx].config(text=label, state='normal')
             self.attribute_button_command(self.lst_buttons_category[idx], val)
 
+        # Initiate buffer
+        self.buffer = Buffer(
+            rasters_src=self.raster_path,
+            polygons_src=self.polygon_path,
+            buffer_front_max_size=self.buffer_front_max_size,
+            buffer_back_max_size=self.buffer_back_max_size,
+        )
+
+        while self.buffer == None:
+            sleep(0.1)
         self.show_image()
 
     if self.polygon_path != "" or self.raster_path != "":

@@ -3,6 +3,7 @@ import tkinter as tk
 from tkinter import Tk, Menu, Label, Button, Frame, font, filedialog, messagebox, Checkbutton, Scrollbar, IntVar, Canvas,Toplevel, Text
 from tkinter import ttk
 from PIL import Image, ImageTk
+from time import sleep
 import numpy as np
 import geopandas as gpd
 import rasterio
@@ -10,7 +11,6 @@ from rasterio.mask import mask
 from functools import partial
 from src.menu_utils import *
 from src.image_utils import show_image, zoom, drag_image, start_drag, update_image
-
 
 class ImageViewer:
     def __init__(self, root):
@@ -50,6 +50,11 @@ class ImageViewer:
         self.interest_col_lbl_to_val = {}
         self.interest_col_val_to_lbl = {}
         self.mode = ""
+
+        #   _buffer
+        self.buffer = None
+        self.buffer_front_max_size = 10
+        self.buffer_back_max_size = 5
 
         # Set a custom font style for the app
         self.custom_font = font.Font(family="Helvetica", size=10, weight="bold")
@@ -192,6 +197,8 @@ class ImageViewer:
         self.image.bind("<B1-Motion>",lambda event:  drag_image(self, event))
         self.image.bind("<Button-1>",lambda event:  start_drag(self, event))
 
+        # Run the update function
+        # self.update_infos()
 
         # temp-------------------
         """self.polygon_path = "D:/GitHubProjects/STDL_sample_labelizer/data/sources/inf_binary_LR_RF.gpkg"
@@ -211,7 +218,7 @@ class ImageViewer:
         self.update_infos()"""
         # -----------------------
         
-        show_image(self)
+        # show_image(self)
    
     def show_image(self):
         show_image(self)
@@ -300,6 +307,9 @@ class ImageViewer:
                 button.config(state='normal')
         if self.sample_index == self.num_dataset_to_show - 1:
             messagebox.showinfo("informaton", "Last sample reached !")
+
+        # loop every 100ms
+        # self.root.after(100, self.update_infos)
 
     def attribute_button_command(self, button: ttk.Button, val):
         def change_category(self, cat):

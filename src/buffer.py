@@ -21,7 +21,7 @@ from multiprocessing import Manager
 import threading
 
 
-def clip_and_store(pause_event, polygons, margin_around_image, list_rasters_src, buffer_tasks, buffer_results, buffer_size, buffer_max_size, img_width, img_height, buffer_pos, temp_dir, buffer_type, buffer_max_pos):
+def clip_and_store(pause_event, polygons, margin_around_image, list_rasters_src, buffer_tasks, buffer_results, buffer_size, buffer_max_size, img_size, temp_dir, buffer_type):
         """
         Worker process to clip rasters and store them in a temp folder.
         """
@@ -138,20 +138,20 @@ def clip_and_store(pause_event, polygons, margin_around_image, list_rasters_src,
 
                     #   _resize image
                     max_size = np.max(img_arr.shape[:2])
-                    ratio = img_width / max_size
+                    ratio = img_size / max_size
                     new_size = np.flip((np.array(img_arr.shape[0:2]) * ratio).astype(int))
                     image_resized = np.array(image.resize(new_size))  # Resize for display
 
                     #   _add padding
                     min_axis = np.argmin(image_resized.shape[:2])
                     min_size = np.min(image_resized.shape[:2])
-                    padding_size = int((img_width - min_size)/2)
+                    padding_size = int((img_size - min_size)/2)
                     padding = [(padding_size, padding_size), (0, 0), (0, 0)] if min_axis == 0 else [(0, 0), (padding_size, padding_size), (0, 0)]
                     padded_image = np.pad(image_resized,padding, mode='constant')
                     
                     # control sizes
                     for ax in range(2):
-                        while padded_image.shape[ax] < img_width:
+                        while padded_image.shape[ax] < img_size:
                             additional_padding = np.zeros((1,padded_image.shape[1],3)) if ax == 0 else np.zeros((padded_image.shape[0], 1,3))
                             padded_image = np.concatenate((padded_image, additional_padding), axis=ax)
 
@@ -161,7 +161,7 @@ def clip_and_store(pause_event, polygons, margin_around_image, list_rasters_src,
                     img.save(temp_file_path)
 
                     # Notify main process of the result
-                    buffer_results.append((sample_pos, temp_file_path))
+                    buffer_results.append((sample_pos, temp_file_path, deltax, deltay))
                     buffer_size.value += 1
                     print(f"New sample in buffer {buffer_type}: {sample_pos}")
                     del buffer_tasks[0]
@@ -174,7 +174,7 @@ def clip_and_store(pause_event, polygons, margin_around_image, list_rasters_src,
                         sleep(0.1)
 
             except Exception as e:
-                buffer_results.append((sample_pos, f"ERROR: {str(e)}"))
+                buffer_results.append((sample_pos, f"ERROR: {str(e)}",0,0))
                 print("error!")
             finally:
                 pass
@@ -184,58 +184,64 @@ def clip_and_store(pause_event, polygons, margin_around_image, list_rasters_src,
 
 class Buffer():
     def __init__(self, rasters_src, polygons_src, buffer_front_max_size, buffer_back_max_size):
-        self.rasters_src = rasters_src
+
+        # Initialise variables
+        #   _rasters and polygons info
         self.polygons_src = polygons_src
-        self.buffer_front_max_size = buffer_front_max_size
-        self.buffer_back_max_size = buffer_back_max_size
-        self.buffer_size = 0
-        self.polygons = gpd.read_file(polygons_src)
+        self.rasters_src = rasters_src
         self.list_rasters_src = []
-        self.current_pos = 0
-        self.current_file_path = ""
-        self.margin_around_image = 50
-
-        self.buffer_front_size = multiprocessing.Value("i", 0)  # Integer shared variable
-        self.buffer_back_size = multiprocessing.Value("i", 0)  # Integer shared variable
-        self.loading_front_pos = multiprocessing.Value("i", 0)
-        self.loading_back_pos = multiprocessing.Value("i", 0)
-        self.buffer_front_process = None
-        self.buffer_back_process = None
-        self.buffer_front_max_pos = 0
-        self.buffer_back_max_pos = 0
-
-        manager = Manager()
-        self.task_front_list = manager.list()
-        self.result_front_list = manager.list()
-        self.task_back_list = manager.list()
-        self.result_back_list = manager.list()
-
-        # Create a temporary folder for the buffer
-        self.temp_front_dir = tempfile.mkdtemp()
-        self.temp_back_dir = tempfile.mkdtemp()
-
-        # Events to control the process
-        self.pause_event_front = multiprocessing.Event()
-        self.pause_event_back = multiprocessing.Event()
-
-        # Setup
         for r, _, f in os.walk(self.rasters_src):
             for file in f:
                 if file.endswith('.tif'):
                     file_src = r + '/' + file
                     file_src = file_src.replace('\\','/')
                     self.list_rasters_src.append(file_src)
-    
+        self.polygons = gpd.read_file(polygons_src)
+
+        #   _samples dimensions
+        self.image_size = 512
+        self.margin_around_image = 50
+
+        #   _current sample
+        self.current_pos = 0
+        self.current_file_path = ""
+        self.current_deltax = 0
+        self.current_deltay = 0
+
+
+        #   _buffers sizes
+        self.buffer_front_max_size = buffer_front_max_size
+        self.buffer_back_max_size = buffer_back_max_size
+        self.buffer_front_size = multiprocessing.Value("i", 0)  # Integer shared variable
+        self.buffer_back_size = multiprocessing.Value("i", 0)  # Integer shared variable
+
+        #   _processes
+        self.buffer_front_process = None
+        self.buffer_back_process = None
+
+        #   _lists of tasks and results
+        manager = Manager()
+        self.task_front_list = manager.list()
+        self.result_front_list = manager.list()
+        self.task_back_list = manager.list()
+        self.result_back_list = manager.list()
+
+        #   _create a temporary folder for the buffer
+        self.temp_front_dir = tempfile.mkdtemp()
+        self.temp_back_dir = tempfile.mkdtemp()
+
+        #   _events to control the process
+        self.pause_event_front = multiprocessing.Event()
+        self.pause_event_back = multiprocessing.Event()
+
     def start(self):
-        #   _create new list for task communication
+        # Fill the lists for task communication
         for i in range(self.buffer_front_max_size):
             pos = (self.current_pos + i)  % len(self.polygons)  # Loop around
             self.task_front_list.append(pos)
-            self.buffer_front_max_pos = pos
         for i in range(1, self.buffer_back_max_size + 1):
             pos = (self.current_pos - i)  % len(self.polygons)  # Loop around
             self.task_back_list.append(pos)
-            self.buffer_back_max_pos = pos
 
         # Start the buffer processes
         self.buffer_front_process = multiprocessing.Process(
@@ -248,12 +254,9 @@ class Buffer():
                   self.result_front_list, 
                   self.buffer_front_size,
                   self.buffer_front_max_size,
-                  512,
-                  512,
-                  self.loading_front_pos,
+                  self.image_size,
                   self.temp_front_dir,
                   'frontward',
-                  self.buffer_front_max_pos
                   ])
         
         self.buffer_back_process = multiprocessing.Process(
@@ -266,24 +269,26 @@ class Buffer():
                   self.result_back_list, 
                   self.buffer_back_size,
                   self.buffer_back_max_size,
-                  512,
-                  512,
-                  self.loading_back_pos,
+                  self.image_size,
                   self.temp_back_dir,
                   'backward',
-                  self.buffer_back_max_pos
                   ])
         
+        # Start the buffers
         self.buffer_front_process.start()
         self.buffer_back_process.start()
 
-    
+        while len(self.result_front_list) == 0:
+            sleep(0.1)
+        self.current_pos, self.current_file_path, self.current_deltax, self.current_deltay = self.result_front_list[0]
+
     def move_forward(self, buttons):
-        # change buffers
+        # Change buffers
         error_occured = False
         try:
-            old_pos, old_path = self.result_front_list.pop(0)  
-            self.current_pos, self.current_file_path = self.result_front_list[0]
+            # Update current sample
+            old_pos, old_path, _, _ = self.result_front_list.pop(0)  
+            self.current_pos, self.current_file_path, _, _ = self.result_front_list[0]
             self.buffer_front_size.value -= 1
             new_back_path = self.temp_back_dir + '\\' + old_path.split('\\')[-1]
             self.result_back_list.insert(0,(old_pos, new_back_path))
@@ -308,8 +313,8 @@ class Buffer():
         # change buffers
         error_occured = False
         try:
-            new_pos, new_path = self.result_back_list.pop(0)
-            # update current pos
+            # Update current sample
+            new_pos, new_path, _, _ = self.result_back_list.pop(0)
             self.current_pos = new_pos
             self.buffer_back_size.value -= 1
             new_current_path = self.temp_front_dir + '\\' + new_path.split('\\')[-1]
@@ -330,20 +335,10 @@ class Buffer():
         finally:
             if error_occured:
                 self.reset()
-            # sleep(0.5)
-            # self.pause_event_front.clear()
-            # self.pause_event_back.clear()
             for button in buttons:
                 button.config(state='normal')
 
-    def create_frontward(self):
-        pass
-
-    def create_backward(self):
-        pass
-
     def reset(self):
-
         # Pauses processes
         self.pause_event_front.set()
         self.pause_event_back.set()
@@ -371,11 +366,9 @@ class Buffer():
         for i in range(self.buffer_front_max_size):
             pos = (self.current_pos + i)  % len(self.polygons)  # Loop around
             self.task_front_list.append(pos)
-            self.buffer_front_max_pos = pos
         for i in range(1, self.buffer_back_max_size + 1):
             pos = (self.current_pos - i)  % len(self.polygons)  # Loop around
             self.task_back_list.append(pos)
-            self.buffer_back_max_pos = pos
 
         #   _reset size
         self.buffer_front_size.value = 0
@@ -552,9 +545,7 @@ class App(tk.Tk):
         self.buffer.start()
         while len(self.buffer.result_front_list) < 1:
             sleep(0.1)
-        # current_pos, current_file_path = self.buffer.result_queue.get()
-        # current_pos, current_file_path = self.buffer.result_front_list.pop(0)
-        current_pos, current_file_path = self.buffer.result_front_list[0]
+        current_pos, current_file_path, _, _ = self.buffer.result_front_list[0]
         self.center_label.config(text=f"Sample {current_pos}")
         self.buffer.current_file_path = current_file_path
 
@@ -570,8 +561,6 @@ class App(tk.Tk):
             sleep(0.1)
         thread = threading.Thread(target=self.buffer.move_backward, args=([self.prev_button, self.next_button],))
         thread.start()
-        # self.buffer.move_backward()
-        # self.prev_button.config(state='normal')
 
     def on_next(self):
         # Handle "Next" button click
@@ -581,9 +570,6 @@ class App(tk.Tk):
             sleep(0.1)
         thread = threading.Thread(target=self.buffer.move_forward, args=([self.prev_button, self.next_button],))
         thread.start()
-        # self.buffer.move_forward()
-        # self.next_button.config(state='normal')
-        #self.center_label.config(text="Next button clicked")
 
     def update(self):
         self.center_label.config(text=f"Sample {self.buffer.current_pos}")
