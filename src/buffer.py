@@ -33,9 +33,8 @@ def clip_and_store(pause_event, polygons, margin_around_image, list_rasters_src,
                         break
 
                     sample_pos = task
-                    sample = polygons.loc[sample_pos]
+                    sample = polygons.iloc[sample_pos]
                     geometry = sample.geometry
-
                     # Define bounding box
                     exterior_coords = []
 
@@ -163,7 +162,7 @@ def clip_and_store(pause_event, polygons, margin_around_image, list_rasters_src,
                     # Notify main process of the result
                     buffer_results.append((sample_pos, temp_file_path, deltax, deltay))
                     buffer_size.value += 1
-                    print(f"New sample in buffer {buffer_type}: {sample_pos}")
+                    print(f"New sample in buffer {buffer_type}: {sample_pos} - {temp_file_path}")
                     del buffer_tasks[0]
                 else:
                     if buffer_size.value > buffer_max_size:
@@ -174,8 +173,9 @@ def clip_and_store(pause_event, polygons, margin_around_image, list_rasters_src,
                         sleep(0.1)
 
             except Exception as e:
-                buffer_results.append((sample_pos, f"ERROR: {str(e)}",0,0))
-                print("error!")
+                # buffer_results.append((sample_pos, f"ERROR: {str(e)}",0,0))
+                print("Error during clipping: ", e)
+                buffer_size.value += 1
             finally:
                 pass
         print('done!')
@@ -183,11 +183,11 @@ def clip_and_store(pause_event, polygons, margin_around_image, list_rasters_src,
 
 
 class Buffer():
-    def __init__(self, rasters_src, polygons_src, buffer_front_max_size, buffer_back_max_size):
+    def __init__(self, rasters_src, polygons, buffer_front_max_size, buffer_back_max_size):
 
         # Initialise variables
         #   _rasters and polygons info
-        self.polygons_src = polygons_src
+        # self.polygons_src = polygons_src
         self.rasters_src = rasters_src
         self.list_rasters_src = []
         for r, _, f in os.walk(self.rasters_src):
@@ -196,7 +196,7 @@ class Buffer():
                     file_src = r + '/' + file
                     file_src = file_src.replace('\\','/')
                     self.list_rasters_src.append(file_src)
-        self.polygons = gpd.read_file(polygons_src)
+        self.polygons = polygons
 
         #   _samples dimensions
         self.image_size = 512
@@ -207,7 +207,6 @@ class Buffer():
         self.current_file_path = ""
         self.current_deltax = 0
         self.current_deltay = 0
-
 
         #   _buffers sizes
         self.buffer_front_max_size = buffer_front_max_size
@@ -220,11 +219,11 @@ class Buffer():
         self.buffer_back_process = None
 
         #   _lists of tasks and results
-        manager = Manager()
-        self.task_front_list = manager.list()
-        self.result_front_list = manager.list()
-        self.task_back_list = manager.list()
-        self.result_back_list = manager.list()
+        self.manager = Manager()
+        self.task_front_list = self.manager.list()
+        self.result_front_list = self.manager.list()
+        self.task_back_list = self.manager.list()
+        self.result_back_list = self.manager.list()
 
         #   _create a temporary folder for the buffer
         self.temp_front_dir = tempfile.mkdtemp()
@@ -247,7 +246,7 @@ class Buffer():
         self.buffer_front_process = multiprocessing.Process(
             target=clip_and_store, 
             args=[self.pause_event_front,
-                  self.polygons, 
+                  self.polygons,
                   self.margin_around_image,
                   self.list_rasters_src,
                   self.task_front_list, 
@@ -287,11 +286,11 @@ class Buffer():
         error_occured = False
         try:
             # Update current sample
-            old_pos, old_path, _, _ = self.result_front_list.pop(0)  
+            old_pos, old_path, new_deltax, new_deltay = self.result_front_list.pop(0)  
             self.current_pos, self.current_file_path, _, _ = self.result_front_list[0]
             self.buffer_front_size.value -= 1
             new_back_path = self.temp_back_dir + '\\' + old_path.split('\\')[-1]
-            self.result_back_list.insert(0,(old_pos, new_back_path))
+            self.result_back_list.insert(0,(old_pos, new_back_path, new_deltax, new_deltay))
             self.buffer_back_size.value += 1
             shutil.move(old_path, new_back_path)
 
@@ -306,20 +305,20 @@ class Buffer():
         finally:
             if error_occured:
                 self.reset()
-            for button in buttons:
-                button.config(state='normal')
+            # for button in buttons:
+            #     button.config(state='normal')
 
     def move_backward(self, buttons):
         # change buffers
         error_occured = False
         try:
             # Update current sample
-            new_pos, new_path, _, _ = self.result_back_list.pop(0)
+            new_pos, new_path, new_deltax, new_deltay = self.result_back_list.pop(0)
             self.current_pos = new_pos
             self.buffer_back_size.value -= 1
             new_current_path = self.temp_front_dir + '\\' + new_path.split('\\')[-1]
             self.current_file_path = new_current_path
-            self.result_front_list.insert(0,(new_pos, new_current_path))
+            self.result_front_list.insert(0,(new_pos, new_current_path, new_deltax, new_deltay))
             self.buffer_front_size.value += 1
             shutil.move(new_path, new_current_path)
             if len(self.task_back_list) > 0:
@@ -335,8 +334,8 @@ class Buffer():
         finally:
             if error_occured:
                 self.reset()
-            for button in buttons:
-                button.config(state='normal')
+            # for button in buttons:
+            #     button.config(state='normal')
 
     def reset(self):
         # Pauses processes
@@ -377,8 +376,14 @@ class Buffer():
         # Resume processes
         self.pause_event_front.clear()
         self.pause_event_back.clear()
-        print("Restarted")
 
+        # Wait for first item to be loaded
+        while len(self.result_front_list) == 0:
+            sleep(0.1)
+        
+        # Reload first itme
+        self.current_pos, self.current_file_path, self.current_deltax, self.current_deltay = self.result_front_list[0]
+        print("Restarted")
 
     def purge(self):
         # Clean up
@@ -390,6 +395,28 @@ class Buffer():
         # Optionally delete the temp directory after use
         shutil.rmtree(self.temp_front_dir)
         shutil.rmtree(self.temp_back_dir)
+
+    def restart(self):
+        try:
+            self.purge()
+        finally:
+            #   _create a temporary folder for the buffer
+            self.temp_front_dir = tempfile.mkdtemp()
+            self.temp_back_dir = tempfile.mkdtemp()
+
+            # Update 
+            #   _clear
+            self.task_front_list = self.manager.list()
+            self.result_front_list = self.manager.list()
+            self.task_back_list = self.manager.list()
+            self.result_back_list = self.manager.list()
+
+            #   _reset size
+            self.buffer_front_size.value = 0
+            self.buffer_back_size.value = 0
+
+            self.start()
+            # for i in range(len(self.task_fpend(pos)
 
     def test(self):
 
@@ -505,6 +532,7 @@ class App(tk.Tk):
         super().__init__()
         self.raster_src = raster_src
         self.polygons_src = polygons_src
+        self.polygons = gpd.read_file(polygons_src)
         self.title("Sample Interface")
         self.geometry("300x200")  # Set window size
 
@@ -538,7 +566,7 @@ class App(tk.Tk):
         
         self.buffer = Buffer(
             rasters_src=raster_src,
-            polygons_src=polygons_src,
+            polygons=self.polygons,
             buffer_front_max_size=10,
             buffer_back_max_size=5,
             )

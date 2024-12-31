@@ -33,12 +33,11 @@ def show_image(self):
     self.display_image = self.original_image.copy()
     self.photo = ImageTk.PhotoImage(self.display_image)
     self.image_id = self.image.create_image(0, 0, anchor=tk.NW, image=self.photo)
-    cat = self.dataset_to_show.loc[self.sample_pos, self.frac_col]
-    self.title.config(text=f"sample {self.sample_index} - {self.frac_col_val_to_lbl[str(cat)]}")
-
+    # cat = self.dataset_to_show.iloc[self.sample_pos][self.frac_col]
+    # self.title.config(text=f"sample {self.sample_index} - {self.frac_col_val_to_lbl[str(cat)]}")
 
     # apply initial zoom
-    self.initial_zoom = (max(self.buffer.deltax, self.buffer.deltay) + 2 * self.margin_around_image) / max(self.buffer.deltax, self.buffer.deltay)
+    self.initial_zoom = (max(self.buffer.current_deltax, self.buffer.current_deltay) + 2 * self.margin_around_image) / max(self.buffer.current_deltax, self.buffer.current_deltay)
     self.current_zoom = self.initial_zoom / 1.1
     self.offset_x = 0.5
     self.offset_y = 0.5
@@ -198,8 +197,6 @@ def show_image(self):
 #     plt.close()
 
 
-
-
 """# Example usage
 current_center = (100, 100)  # Current center in map coordinates
 map_dimensions = (200, 200)  # Map width and height
@@ -259,6 +256,7 @@ def zoom_follow_cursor(self, event):
 
 
 def zoom(self, event):
+    print("zooming")
     # Adjust zoom level
     if event.delta > 0:
         self.current_zoom *= 1.1

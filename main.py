@@ -9,6 +9,7 @@ import geopandas as gpd
 import rasterio
 from rasterio.mask import mask
 from functools import partial
+import threading
 from src.menu_utils import *
 from src.image_utils import show_image, zoom, drag_image, start_drag, update_image
 
@@ -171,9 +172,9 @@ class ImageViewer:
         self.nav_button_frame.configure(bg="#2c3e50")
 
         # Create navigation buttons
-        self.prev_button = ttk.Button(self.nav_button_frame, text="Previous", command=self.show_previous_image)
+        self.prev_button = ttk.Button(self.nav_button_frame, text="Previous", state='disabled', command=self.show_previous_image)
         self.prev_button.pack(side="left", padx=20)
-        self.next_button = ttk.Button(self.nav_button_frame, text="Next", command=self.show_next_image)
+        self.next_button = ttk.Button(self.nav_button_frame, text="Next", state='disabled', command=self.show_next_image)
         self.next_button.pack(side="right", padx=20)
 
         # Create class buttons
@@ -230,33 +231,108 @@ class ImageViewer:
         if self.num_dataset_to_show == 0:
             show_image(self)
             return
-        self.sample_pos = (self.sample_pos + 1)  % len(self.dataset_to_show)  # Loop around
+        
+        # Handle navigation buttons
+        self.prev_button.config(state='disabled')
+        self.next_button.config(state='disabled')
+
+        # Wait if the buffer is empty
+        while self.buffer.buffer_back_size.value == 1 or self.buffer.buffer_front_size.value == 1:
+            sleep(0.1)
+
+        # Synchronization event to signal when the thread is done
+        thread_done = threading.Event()
+
+        # 
+        def thread_target():
+            try:
+                self.buffer.move_forward([self.prev_button, self.next_button])
+            except Exception as e:
+                print(f"Error in thread: {e}")
+            finally:
+                thread_done.set()  # Signal that the thread is done
+
+        # Start the thread
+        thread = threading.Thread(target=thread_target)
+        thread.start()
+
+        # Wait for the thread to finish (in order to avoid read-write conflicts)
+        while not thread_done.is_set():
+            sleep(0.1)
+
+        # Update current shown sample
+        self.sample_pos = self.buffer.current_pos
         self.sample_index = self.dataset_to_show.index[self.sample_pos]
         show_image(self)
         self.update_infos()
 
+        # Handle navigation buttons
+        self.prev_button.config(state='normal')
+        self.next_button.config(state='normal')
+
     def show_previous_image(self):
         if self.num_dataset_to_show == 0:
-            show_image()
+            show_image(self)
             return
-        self.sample_pos = (self.sample_pos - 1)  % len(self.dataset_to_show)  # Loop around
+        
+        # Handle navigation buttons
+        self.prev_button.config(state='disabled')
+        self.next_button.config(state='disabled')
+
+        # Wait if the buffer is empty
+        while self.buffer.buffer_back_size.value == 1 or self.buffer.buffer_front_size.value == 1:
+            sleep(0.1)
+
+        # Synchronization event to signal when the thread is done
+        thread_done = threading.Event()
+
+        # 
+        def thread_target():
+            try:
+                self.buffer.move_backward([self.prev_button, self.next_button])
+            except Exception as e:
+                print(f"Error in thread: {e}")
+            finally:
+                thread_done.set()  # Signal that the thread is done
+
+        # Start the thread
+        thread = threading.Thread(target=thread_target)
+        thread.start()
+
+        # Wait for the thread to finish (in order to avoid read-write conflicts)
+        while not thread_done.is_set():
+            sleep(0.1)
+
+        # Update current shown sample
+        self.sample_pos = self.buffer.current_pos
         self.sample_index = self.dataset_to_show.index[self.sample_pos]
         show_image(self)
         self.update_infos()
+
+        # Handle navigation buttons
+        self.prev_button.config(state='normal')
+        self.next_button.config(state='normal')
+        # if self.num_dataset_to_show == 0:
+        #     show_image()
+        #     return
+        # self.sample_pos = (self.sample_pos - 1)  % len(self.dataset_to_show)  # Loop around
+        # self.sample_index = self.dataset_to_show.index[self.sample_pos]
+        # show_image(self)
+        # self.update_infos()
     
     def update_infos(self):
         # update files info
         self.num_dataset_to_show = len(self.dataset_to_show)
-        index_pos = 0
+        self.sample_pos = 0
         if self.num_dataset_to_show > 0:
-            index_pos = self.dataset_to_show.index.get_loc(self.sample_index)
-        self.infos_files['sample shown'] = f'{min([index_pos + 1, self.num_dataset_to_show])} / {self.num_dataset_to_show}'
+            self.sample_pos = self.dataset_to_show.index.get_loc(self.sample_index)
+        self.infos_files['sample shown'] = f'{min([self.sample_pos + 1, self.num_dataset_to_show])} / {self.num_dataset_to_show}'
         self.infos_files['Polygons loc'] = self.polygon_path.split('/')[-1] if self.polygon_path != None else '-'
         self.infos_files['Rasters loc'] = self.raster_path.split('/')[-1] if self.raster_path != None else '-'
         new_text = '\n'.join([key + ': ' + str(val) for key, val in self.infos_files.items()])
         self.label_infos_files.config(text=new_text)
 
-        # update navigation buttons
+        # # update navigation buttons
         if self.num_dataset_to_show == 0:
             self.next_button.config(state='disabled')
             self.prev_button.config(state='disabled')
@@ -305,7 +381,7 @@ class ImageViewer:
                 button.config(state='disabled')
             elif text in self.interest_col_val_to_lbl.values():
                 button.config(state='normal')
-        if self.sample_index == self.num_dataset_to_show - 1:
+        if self.sample_pos == self.num_dataset_to_show - 1:
             messagebox.showinfo("informaton", "Last sample reached !")
 
         # loop every 100ms
@@ -329,10 +405,44 @@ class ImageViewer:
         button.config(command=partial(change_category, self, val))
 
     def select_sample(self, event):
-        pos_sample = int(self.sample_index_combobox.get())
-        self.sample_index = self.dataset_to_show.index[pos_sample - 1]
-        show_image(self)
-        self.update_infos()
+        # Update position
+        self.sample_pos = int(self.sample_index_combobox.get()) - 1
+        self.sample_index = self.dataset_to_show.index[self.sample_pos]
+
+        # Prepare for buffer reset
+        self.buffer.current_pos = self.sample_pos
+        self.buffer.current_file_path = ""
+        self.original_image = None
+        self.display_image = None
+
+
+        # # Synchronization event to signal when the thread is done
+        # thread_done = threading.Event()
+
+        # # 
+        # def thread_target():
+        #     try:
+        #         self.buffer.reset()
+        #     except Exception as e:
+        #         print(f"Error in thread: {e}")
+        #     finally:
+        #         thread_done.set()  # Signal that the thread is done
+
+        # # Start the thread
+        # thread = threading.Thread(target=thread_target)
+        # thread.start()
+
+        # # Wait for the thread to finish (in order to avoid read-write conflicts)
+        # while not thread_done.is_set():
+        #     sleep(0.1)
+
+        try:
+            self.buffer.reset()
+        except Exception as e:
+            print("an error occured while reseting buffer: ", e)
+        finally:
+            show_image(self)
+            self.update_infos()
         
         
 def main():

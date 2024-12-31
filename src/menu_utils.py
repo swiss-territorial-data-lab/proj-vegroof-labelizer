@@ -529,16 +529,19 @@ def load(self, mode=0):
             self.lst_buttons_category[idx].config(text=label, state='normal')
             self.attribute_button_command(self.lst_buttons_category[idx], val)
 
+        # Activate navigation buttons
+        self.next_button.config(state='normal')
+        self.prev_button.config(state='normal')
+        
         # Initiate buffer
         self.buffer = Buffer(
             rasters_src=self.raster_path,
-            polygons_src=self.polygon_path,
+            polygons=self.dataset_to_show,
             buffer_front_max_size=self.buffer_front_max_size,
             buffer_back_max_size=self.buffer_back_max_size,
         )
-
-        while self.buffer == None:
-            sleep(0.1)
+        self.buffer.current_pos = self.sample_pos
+        self.buffer.start()
         self.show_image()
 
     if self.polygon_path != "" or self.raster_path != "":
@@ -639,6 +642,8 @@ def exit(self):
             pass
         else:
             return
+    if self.buffer:
+        self.buffer.purge()
     self.root.quit()
 
 
@@ -651,14 +656,38 @@ def order(self):
         order = radio_selection.get()
         self.order_asc = order == 'asc'
 
-        # update dataframe to show
+        # Update dataframe to show
+        # self.new_dataset = self.new_dataset.sort_values(
+        #     by=[self.order_var], 
+        #     axis=0, 
+        #     ascending= self.order_asc)
         self.dataset_to_show = self.dataset_to_show.sort_values(
             by=[self.order_var], 
             axis=0, 
             ascending= self.order_asc)
-        #self.show_image()
-        self.update_infos()
-        window.destroy()
+        
+        self.buffer.polygons = self.buffer.polygons.sort_values(
+            by=[self.order_var], 
+            axis=0, 
+            ascending= self.order_asc)
+        
+        self.sample_pos = self.dataset_to_show.index.get_loc(self.sample_index)
+
+        # Prepare for buffer reset
+        self.buffer.current_pos = self.sample_pos
+        self.buffer.current_file_path = ""
+        self.original_image = None
+        self.display_image = None
+
+        # Reset buffer and then update shown infos
+        try:
+            self.buffer.restart()
+        except Exception as e:
+            print("an error occured while reseting buffer: ", e)
+        finally:
+            self.update_infos()
+            self.show_image()
+            window.destroy()
 
     # Retrieve categories from dataset
     if len(self.new_dataset) == 0 or self.polygon_path == None:
@@ -711,13 +740,30 @@ def open_list_cat(self):
         self.num_dataset_to_show = len(self.dataset_to_show)
 
         if self.sample_index not in list(self.dataset_to_show.index):
-            self.sample_index = self.dataset_to_show.index[self.sample_pos]
-            self.show_image()
-        else:
-            self.sample_pos = self.dataset_to_show.index.get_loc(self.sample_index)
+            higher_numbers = [x for x in self.dataset_to_show.index if x > self.sample_index]
+            self.sample_index = min(higher_numbers)
+            # self.sample_index = self.dataset_to_show.index[self.sample_pos]
+            # self.show_image()
 
-        self.update_infos()
-        window.destroy()
+        self.sample_pos = self.dataset_to_show.index.get_loc(self.sample_index)
+
+        # Prepare for buffer reset
+        self.buffer.current_pos = self.sample_pos
+        self.buffer.current_file_path = ""
+        self.original_image = None
+        self.display_image = None
+
+        # Reset buffer and then update shown infos
+        try:
+            self.buffer.reset()
+        except Exception as e:
+            print("an error occured while reseting buffer: ", e)
+        finally:
+            self.update_infos()
+            self.show_image()
+            window.destroy()
+        # self.update_infos()
+        # window.destroy()
 
     # Retrieve categories from dataset
     if len(self.new_dataset) == 0 or self.polygon_path == None:
