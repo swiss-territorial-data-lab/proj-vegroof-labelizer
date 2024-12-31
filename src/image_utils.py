@@ -25,8 +25,19 @@ def scale_geometry(geometry, xfact, yfact):
         return geometry
     
 def show_image(self):
-    while self.buffer.current_file_path == "":
-        sleep(0.1)
+    if self.buffer:
+        while self.buffer.current_file_path == "":
+            sleep(0.1)
+
+    # When no matching raster
+    if len(self.list_rasters_src) == 0 or len(self.dataset_to_show) == 0 or (self.buffer and self.buffer.current_file_path == 'no-sample'):
+        self.original_image = Image.open("./src/no_image.png").resize((self.img_width, self.img_height))
+        self.display_image = self.original_image.copy()
+        self.photo = ImageTk.PhotoImage(self.display_image)
+        self.image_id = self.image.create_image(0, 0, anchor=tk.NW, image=self.photo)
+        self.title.config(text="No sample to display")
+        return
+
     # Show image and title
     # self.original_image = Image.fromarray(np.uint8(padded_image))
     self.original_image = Image.open(self.buffer.current_file_path)
@@ -37,7 +48,9 @@ def show_image(self):
     # self.title.config(text=f"sample {self.sample_index} - {self.frac_col_val_to_lbl[str(cat)]}")
 
     # apply initial zoom
-    self.initial_zoom = (max(self.buffer.current_deltax, self.buffer.current_deltay) + 2 * self.margin_around_image) / max(self.buffer.current_deltax, self.buffer.current_deltay)
+    a = (max(self.buffer.current_deltax, self.buffer.current_deltay) + 2 * self.margin_around_image)
+    b = max(self.buffer.current_deltax, self.buffer.current_deltay)
+    self.initial_zoom = b and a / b or 0
     self.current_zoom = self.initial_zoom / 1.1
     self.offset_x = 0.5
     self.offset_y = 0.5
@@ -256,7 +269,6 @@ def zoom_follow_cursor(self, event):
 
 
 def zoom(self, event):
-    print("zooming")
     # Adjust zoom level
     if event.delta > 0:
         self.current_zoom *= 1.1

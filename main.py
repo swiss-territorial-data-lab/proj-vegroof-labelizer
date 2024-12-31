@@ -39,7 +39,7 @@ class ImageViewer:
         }
 
         #   _ordering variables and metadata
-        self.order_var = None
+        self.order_var = ""
         self.order_asc = True
         self.metadata = {}
 
@@ -165,7 +165,6 @@ class ImageViewer:
         self.class_button_frame.pack(side="bottom", pady=20)  # Add position and padding to frame
         self.class_button_frame.configure(bg="#2c3e50")
 
-        
         # Set the frames of navigation buttons
         self.nav_button_frame = Frame(root)
         self.nav_button_frame.pack(side="bottom", pady=10) # Add position and padding to frame
@@ -177,7 +176,7 @@ class ImageViewer:
         self.next_button = ttk.Button(self.nav_button_frame, text="Next", state='disabled', command=self.show_next_image)
         self.next_button.pack(side="right", padx=20)
 
-        # Create class buttons
+        # Create category buttons
         self.lst_buttons_category = []
         for i in range(6):
             new_button = ttk.Button(self.class_button_frame, text="-", state='disabled')
@@ -219,7 +218,7 @@ class ImageViewer:
         self.update_infos()"""
         # -----------------------
         
-        # show_image(self)
+        show_image(self)
    
     def show_image(self):
         show_image(self)

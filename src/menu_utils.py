@@ -111,6 +111,12 @@ def menu_mode_choice(self, mode_window):
                     mode_window.focus_set()
                     return
             
+            # reinitialize
+            self.frac_col_val_to_lbl = {}
+            self.frac_col_lbl_to_val = {}
+            self.interest_col_val_to_lbl = {}
+            self.interest_col_lbl_to_val = {}
+
             # assign values
             self.interest_col = combobox_interest_col.get()
             select_col = combobox_interest_col.get()
@@ -523,8 +529,13 @@ def load(self, mode=0):
         self.new_dataset = self.new_dataset.to_crs(crs=self.new_crs)
         self.dataset_to_show = self.dataset_to_show.to_crs(crs=self.new_crs)
 
+        # Reset categorie buttons (if loading from former project)
+        for i in range(6):
+            self.lst_buttons_category[i].config(text='-', state='disabled')
+
         # Activate categorie buttons
         for idx, (val, label) in enumerate(self.interest_col_val_to_lbl.items()):
+            print(idx)
             label = label[0:13] + '..' if len(label) > 15 else label
             self.lst_buttons_category[idx].config(text=label, state='normal')
             self.attribute_button_command(self.lst_buttons_category[idx], val)
@@ -534,15 +545,19 @@ def load(self, mode=0):
         self.prev_button.config(state='normal')
         
         # Initiate buffer
-        self.buffer = Buffer(
-            rasters_src=self.raster_path,
-            polygons=self.dataset_to_show,
-            buffer_front_max_size=self.buffer_front_max_size,
-            buffer_back_max_size=self.buffer_back_max_size,
-        )
-        self.buffer.current_pos = self.sample_pos
-        self.buffer.start()
-        self.show_image()
+        try:
+            if self.buffer:
+                self.buffer.purge()
+        finally:
+            self.buffer = Buffer(
+                rasters_src=self.raster_path,
+                polygons=self.dataset_to_show,
+                buffer_front_max_size=self.buffer_front_max_size,
+                buffer_back_max_size=self.buffer_back_max_size,
+            )
+            self.buffer.current_pos = self.sample_pos
+            self.buffer.start()
+            self.show_image()
 
     if self.polygon_path != "" or self.raster_path != "":
         self.update_infos()
@@ -647,6 +662,18 @@ def exit(self):
     self.root.quit()
 
 
+def sort_and_filter(self):
+    shown_cat_keys = [key for key,val in self.frac_col_val_to_lbl.items() if val in self.shown_cat]
+    indexes = self.new_dataset.loc[self.new_dataset[self.frac_col].astype('string').isin(shown_cat_keys)].index
+    new_df = self.new_dataset.loc[indexes].copy()
+    if self.order_var != "":
+        new_df = new_df.sort_values(
+            by=[self.order_var], 
+            axis=0, 
+            ascending= self.order_asc)
+    return new_df
+
+
 def order(self):
     def ok_button_pressed(window, combobox, radio_selection):
         if combobox.get() == "Select an option":
@@ -661,16 +688,17 @@ def order(self):
         #     by=[self.order_var], 
         #     axis=0, 
         #     ascending= self.order_asc)
-        self.dataset_to_show = self.dataset_to_show.sort_values(
-            by=[self.order_var], 
-            axis=0, 
-            ascending= self.order_asc)
+        # self.dataset_to_show = self.dataset_to_show.sort_values(
+        #     by=[self.order_var], 
+        #     axis=0, 
+        #     ascending= self.order_asc)
         
-        self.buffer.polygons = self.buffer.polygons.sort_values(
-            by=[self.order_var], 
-            axis=0, 
-            ascending= self.order_asc)
-        
+        # self.buffer.polygons = self.buffer.polygons.sort_values(
+        #     by=[self.order_var], 
+        #     axis=0, 
+        #     ascending= self.order_asc)
+        self.dataset_to_show = sort_and_filter(self)
+        self.buffer.polygons = sort_and_filter(self)
         self.sample_pos = self.dataset_to_show.index.get_loc(self.sample_index)
 
         # Prepare for buffer reset
@@ -734,9 +762,22 @@ def open_list_cat(self):
         checked_items = tree.get_checked()
         checked_texts = [str(tree.item(item, "text")) for item in checked_items]
         self.shown_cat = checked_texts
-        shown_cat_keys = [key for key,val in self.frac_col_val_to_lbl.items() if val in self.shown_cat]
-        indexes = self.new_dataset.loc[self.new_dataset[self.frac_col].astype('string').isin(shown_cat_keys)].index
-        self.dataset_to_show = self.new_dataset.loc[indexes].copy()
+        # shown_cat_keys = [key for key,val in self.frac_col_val_to_lbl.items() if val in self.shown_cat]
+        # indexes = self.new_dataset.loc[self.new_dataset[self.frac_col].astype('string').isin(shown_cat_keys)].index
+        # self.dataset_to_show = self.new_dataset.loc[indexes].copy()
+        # self.dataset_to_show = self.new_dataset.sort_values(
+        #     by=[self.order_var], 
+        #     axis=0, 
+        #     ascending= self.order_asc
+        # ).loc[self.dataset_to_show.index.isin(indexes)]
+
+        # self.buffer.polygons = self.new_dataset.sort_values(
+        #     by=[self.order_var], 
+        #     axis=0, 
+        #     ascending= self.order_asc
+        # ).loc[self.dataset_to_show.index.isin(indexes)]
+        self.dataset_to_show = sort_and_filter(self)
+        self.buffer.polygons = sort_and_filter(self)
         self.num_dataset_to_show = len(self.dataset_to_show)
 
         if self.sample_index not in list(self.dataset_to_show.index):
@@ -746,7 +787,7 @@ def open_list_cat(self):
             # self.show_image()
 
         self.sample_pos = self.dataset_to_show.index.get_loc(self.sample_index)
-
+        
         # Prepare for buffer reset
         self.buffer.current_pos = self.sample_pos
         self.buffer.current_file_path = ""
@@ -755,13 +796,29 @@ def open_list_cat(self):
 
         # Reset buffer and then update shown infos
         try:
-            self.buffer.reset()
+            self.buffer.restart()
         except Exception as e:
             print("an error occured while reseting buffer: ", e)
         finally:
             self.update_infos()
             self.show_image()
             window.destroy()
+
+        # # Prepare for buffer reset
+        # self.buffer.current_pos = self.sample_pos
+        # self.buffer.current_file_path = ""
+        # self.original_image = None
+        # self.display_image = None
+
+        # # Reset buffer and then update shown infos
+        # try:
+        #     self.buffer.reset()
+        # except Exception as e:
+        #     print("an error occured while reseting buffer: ", e)
+        # finally:
+        #     self.update_infos()
+        #     self.show_image()
+        #     window.destroy()
         # self.update_infos()
         # window.destroy()
 
@@ -867,19 +924,31 @@ def remove_sample(self):
         messagebox.showwarning("Information", "No polygon file loaded!")
         return
     
-    # confirmation
+    # Confirmation
     # if not messagebox.askyesno("Confirmation", "You are about to remove this sample. Are you sure?"):
     #     return
 
 
-    # remove sample
+    # Remove sample
     self.dataset_to_show = self.dataset_to_show.drop(self.sample_index, axis=0)
     self.new_dataset = self.new_dataset.drop(self.sample_index, axis=0)
     
-    # add in corresponding list for potential retrieval
+    # Update current sample
+    self.sample_pos = (self.sample_pos + 1) % len(self.dataset_to_show)
+    self.sample_index = self.dataset_to_show.index[self.sample_pos]
+
+    # Add in corresponding list for potential retrieval
     self.changes_log.append("removing " + str(self.sample_index))
-    self.UnsavedChanges = True
-    self.show_next_image()
+    
+    # Remove from buffer
+    self.original_image = None
+    self.display_image = None
+    try:
+        self.buffer.delete_sample()
+    finally:
+        self.UnsavedChanges = True
+        self.update_infos()
+        self.show_image()
 
 
 if __name__ == '__main__':

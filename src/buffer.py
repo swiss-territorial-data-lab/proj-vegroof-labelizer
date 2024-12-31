@@ -89,7 +89,12 @@ def clip_and_store(pause_event, polygons, margin_around_image, list_rasters_src,
                     
                     # Test if polygon match with one or multiple rasters:    
                     if len(matching_rasters) == 0:
-                        raise ValueError("Polygon did not match any raster!")
+                        # raise ValueError("Polygon did not match any raster!")
+                        buffer_results.append((sample_pos, "no-sample", 0, 0))
+                        buffer_size.value += 1
+                        print(f"New sample in buffer {buffer_type}: {sample_pos} - {temp_file_path}")
+                        del buffer_tasks[0]
+                        continue
                     elif len(matching_rasters) == 1:
                         img_arr = matching_images[0]
                     else:
@@ -102,6 +107,19 @@ def clip_and_store(pause_event, polygons, margin_around_image, list_rasters_src,
 
                     if img_arr.shape[0] == 4:
                         img_arr = img_arr[1:4, ...]
+                    print(img_arr.shape)
+                    if len(img_arr.shape) != 3:
+                        raise ValueError("Too many dimensions in the image!")
+                    for pos, dim in enumerate(img_arr.shape):
+                        if dim == 3:
+                            img_arr = np.moveaxis(img_arr, pos, 0)
+                            break
+                        elif pos == 2:
+                            raise ValueError("Too many bands in the image!")
+                    print(img_arr.shape)
+                    # else:
+                    #     print(img_arr.shape)
+                    #     img_arr = np.moveaxis(img_arr, 2, 0)
 
                     # Plot the raster and overlay the original polygon
                     fig, ax = plt.subplots(figsize=(10, 10))
@@ -125,6 +143,7 @@ def clip_and_store(pause_event, polygons, margin_around_image, list_rasters_src,
                     canvas = FigureCanvas(fig)
                     canvas.draw()
                     img_arr = np.frombuffer(canvas.tostring_rgb(), dtype='uint8')
+
                     img_arr = img_arr.reshape(canvas.get_width_height()[::-1] + (3,))
                     plt.close()
 
@@ -166,7 +185,8 @@ def clip_and_store(pause_event, polygons, margin_around_image, list_rasters_src,
                     del buffer_tasks[0]
                 else:
                     if buffer_size.value > buffer_max_size:
-                        os.remove(buffer_results[-1][1])
+                        if buffer_results[-1][1] != 'no-sample':
+                            os.remove(buffer_results[-1][1])
                         del buffer_results[-1]
                         buffer_size.value -= 1
                     while buffer_size.value == buffer_max_size or pause_event.is_set():
@@ -289,10 +309,13 @@ class Buffer():
             old_pos, old_path, new_deltax, new_deltay = self.result_front_list.pop(0)  
             self.current_pos, self.current_file_path, _, _ = self.result_front_list[0]
             self.buffer_front_size.value -= 1
-            new_back_path = self.temp_back_dir + '\\' + old_path.split('\\')[-1]
+            new_back_path = "no-sample"
+            if old_path != 'no-sample':
+                new_back_path = self.temp_back_dir + '\\' + old_path.split('\\')[-1]
             self.result_back_list.insert(0,(old_pos, new_back_path, new_deltax, new_deltay))
             self.buffer_back_size.value += 1
-            shutil.move(old_path, new_back_path)
+            if old_path != 'no-sample':
+                shutil.move(old_path, new_back_path)
 
             if len(self.task_front_list) > 0:
                 self.task_front_list.append((self.task_front_list[-1]+1) % len(self.polygons))
@@ -316,17 +339,18 @@ class Buffer():
             new_pos, new_path, new_deltax, new_deltay = self.result_back_list.pop(0)
             self.current_pos = new_pos
             self.buffer_back_size.value -= 1
-            new_current_path = self.temp_front_dir + '\\' + new_path.split('\\')[-1]
+            new_current_path = 'no-sample'
+            if new_path != 'no-sample':
+                new_current_path = self.temp_front_dir + '\\' + new_path.split('\\')[-1]
             self.current_file_path = new_current_path
             self.result_front_list.insert(0,(new_pos, new_current_path, new_deltax, new_deltay))
             self.buffer_front_size.value += 1
-            shutil.move(new_path, new_current_path)
+            if new_path != 'no-sample':
+                shutil.move(new_path, new_current_path)
             if len(self.task_back_list) > 0:
                 self.task_back_list.append((self.task_back_list[-1] - 1) % len(self.polygons))
             else:
                 self.task_back_list.append((self.result_back_list[-1][0] - 1) % len(self.polygons))
-
-
         except Exception as e:
             print("An error happened :", e)
             print("Restarting buffer..")
@@ -336,6 +360,26 @@ class Buffer():
                 self.reset()
             # for button in buttons:
             #     button.config(state='normal')
+
+    def delete_sample(self):
+        try:
+            old_pos, old_path, new_deltax, new_deltay = self.result_front_list.pop(0)  
+            self.current_pos, self.current_file_path, _, _ = self.result_front_list[0]
+            self.buffer_front_size.value -= 1
+            if old_path != 'no-sample':
+                os.remove(old_path)
+
+            if len(self.task_front_list) > 0:
+                self.task_front_list.append((self.task_front_list[-1]+1) % len(self.polygons))
+            else:
+                self.task_front_list.append((self.result_front_list[-1][0] + 1) % len(self.polygons))
+        except Exception as e:
+            print("An error happened :", e)
+            print("Restarting buffer..")
+            error_occured = True
+        finally:
+            if error_occured:
+                self.reset()
 
     def reset(self):
         # Pauses processes

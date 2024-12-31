@@ -1,30 +1,22 @@
-import tkinter as tk
-from tkinter import ttk
-import threading
-import time
+import pandas as pd
 
-def long_running_task(button):
-    # Simulate a long-running task
-    print("Task started")
-    time.sleep(5)
-    print("Task completed")
-    # Re-enable the button after task completion
-    button.config(state='normal')
+# Example DataFrame
+data = pd.DataFrame({
+    "A": [10, 20, 30, 40, 50],
+    "B": [15, 25, 35, 45, 55]
+}, index=[1, 2, 3, 4, 5])
 
-def on_button_click(button):
-    # Disable the button to prevent spamming
-    button.config(state='disabled')
-    # Start the long-running task in a separate thread
-    thread = threading.Thread(target=long_running_task, args=(button,))
-    thread.start()
+# List of indices to select
+indices_to_select = [2, 4]
+indices_to_select_2 = [4, 2]
 
-# Create the main Tkinter application
-root = tk.Tk()
-root.title("Button Disable Example")
+# Filter DataFrame
+subset = data[data.index.isin(indices_to_select)]
+subset_2 = data[data.index.isin(indices_to_select_2)]
 
-# Create a button
-my_button = ttk.Button(root, text="Run Task", command=lambda: on_button_click(my_button))
-my_button.pack(pady=20)
+print("Original DataFrame:")
+print(data.sort_index(ascending=False))
 
-# Start the Tkinter event loop
-root.mainloop()
+print("\nSubset DataFrame:")
+print(subset)
+print(subset_2)
