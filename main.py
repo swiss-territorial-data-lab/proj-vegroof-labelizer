@@ -13,6 +13,7 @@ import threading
 from src.menu_utils import *
 from src.image_utils import show_image, zoom, drag_image, start_drag, update_image
 
+
 class ImageViewer:
     def __init__(self, root):
         self.UnsavedChanges = False
@@ -42,6 +43,10 @@ class ImageViewer:
         self.order_var = ""
         self.order_asc = True
         self.metadata = {}
+
+        self.zooming_max = 1.5
+        self.margin_around_image = 50
+      
 
         #   _input variables
         self.frac_col = ""
@@ -87,6 +92,9 @@ class ImageViewer:
 
         #   _add ordering
         menu_bar.add_command(label="Order", command=partial(order, self))
+
+        #   _add settings
+        menu_bar.add_command(label='Settings', command=partial(open_settings, self))
 
         #   _add save and exit options
         menu_bar.add_command(label='Save', command=partial(save, self))
@@ -151,6 +159,19 @@ class ImageViewer:
                                   justify="left",
         )
         self.infos_sample.place(x=540, y=120)
+        self.loading_lbl = Label(root, text="",
+                                  font=img_info_font, 
+                                  fg="#ecf0f1", 
+                                  bg="#2c3e50",
+                                  anchor="center",
+                                  justify="left",
+        )
+        self.loading_lbl.place(x=550, y=685)
+
+        # Prepare loading images
+        self.loading_frames = [tk.PhotoImage(file="src/loading.gif", format=f"gif -index {i}") for i in range(12)]
+        self.current_loading_frame = 0
+        self.loading_running = False
 
         # set the sample index selector and tot dataset
         label_sample_index_1 = Label(root, text="Go to sample : ", font=file_info_label_font, fg="#ecf0f1", bg="#2c3e50", anchor="center", justify="left")
@@ -183,6 +204,32 @@ class ImageViewer:
             new_button.pack(side="left", padx=5)
             self.lst_buttons_category.append(new_button)
 
+        # Create buffer labels
+        self.buffer_front_lbl_state = Label(root, text=f"Front Buffer : 0/{self.buffer_front_max_size}",
+                                  font=file_info_label_font, 
+                                  fg="#ecf0f1", 
+                                  bg="#2c3e50",
+                                  anchor="center",
+                                  justify="left",
+        )
+        self.buffer_front_lbl_state.place(x=20, y=640)
+        self.buffer_back_lbl_state = Label(root, text=f"Back Buffer : 0/{self.buffer_back_max_size}",
+                                  font=file_info_label_font, 
+                                  fg="#ecf0f1", 
+                                  bg="#2c3e50",
+                                  anchor="center",
+                                  justify="left",
+        )
+        self.buffer_back_lbl_state.place(x=20, y=660)
+        self.buffer_infos_lbl = Label(root, text="",
+                                  font=file_info_label_font, 
+                                  fg="red", 
+                                  bg="#2c3e50",
+                                  anchor="center",
+                                  justify="left",
+        )
+        self.buffer_infos_lbl.place(x=400, y=640)
+
         # Key binding
         #   _samples navigation
         root.bind('a', lambda event: self.show_previous_image())
@@ -197,36 +244,65 @@ class ImageViewer:
         self.image.bind("<B1-Motion>",lambda event:  drag_image(self, event))
         self.image.bind("<Button-1>",lambda event:  start_drag(self, event))
 
-        # Run the update function
-        # self.update_infos()
-
-        # temp-------------------
-        """self.polygon_path = "D:/GitHubProjects/STDL_sample_labelizer/data/sources/inf_binary_LR_RF.gpkg"
-        self.raster_path = "D:/GitHubProjects/STDL_sample_labelizer/data/sources/inference"
-        self.dataset = gpd.read_file(self.polygon_path)
-        self.new_dataset = gpd.read_file(self.polygon_path)
-        self.dataset_to_show = gpd.read_file(self.polygon_path)
-        for r, d, f in os.walk(self.raster_path):
-                for file in f:
-                    if file.endswith('.tif'):
-                        file_src = r + '/' + file
-                        file_src = file_src.replace('\\','/')
-                        self.list_rasters_src.append(file_src)
-        self.mode = 'labelizer'
-        self.frac_col='pred'
-        self.shown_cat = list(self.new_dataset[self.frac_col].unique())
-        self.update_infos()"""
-        # -----------------------
-        
         show_image(self)
-   
+        threading.Thread(target=self.auto_process).start()
+        # self.running = True
+        # self.animate_loading_icon()
+
+    def auto_process(self):
+        # infos about buffers
+        if self.buffer:
+            self.buffer_front_lbl_state.config(text=f"Front Buffer : {min(self.buffer.buffer_front_size.value, self.buffer_front_max_size)}/{self.buffer_front_max_size}")
+            self.buffer_back_lbl_state.config(text=f"Back Buffer : {min(self.buffer.buffer_back_size.value, self.buffer_back_max_size)}/{self.buffer_back_max_size}")
+
+        if self.loading_running == True:
+            self.animate_loading_icon()
+        else:
+            self.loading_lbl.config(image='')
+        self.root.after(100, self.auto_process)
+
+    def start_process(self):
+            self.running = True
+            self.start_button.config(state=tk.DISABLED)
+
+            # Start the animation
+            self.animate_loading_icon()
+
+            # Run the time-consuming task in a separate thread
+            threading.Thread(target=self.long_task, daemon=True).start()
+
+
+    def animate_loading_icon(self):
+        if self.loading_running:
+            # Update the icon
+            self.loading_lbl.config(image=self.loading_frames[self.current_loading_frame])
+            self.current_loading_frame = (self.current_loading_frame + 1) % len(self.loading_frames)
+            # Schedule the next frame
+            self.root.after(100, self.animate_loading_icon)
+
     def show_image(self):
         show_image(self)
     
     def update_image(self):
         update_image(self)
-
+    
     def show_next_image(self):
+        def thread_target():
+            try:
+                while self.buffer.buffer_front_size.value == 1 or self.buffer.buffer_back_size.value == 1:
+                    sleep(0.5)
+                    self.loading_running = True
+                self.loading_running = False
+                self.buffer.move_forward()
+            except Exception as e:
+                print(f"Error in thread: {e}")
+            finally:
+                # Update current shown sample
+                self.sample_pos = self.buffer.current_pos
+                self.sample_index = self.dataset_to_show.index[self.sample_pos]
+                show_image(self)
+                self.update_infos()
+
         if self.num_dataset_to_show == 0:
             show_image(self)
             return
@@ -235,41 +311,27 @@ class ImageViewer:
         self.prev_button.config(state='disabled')
         self.next_button.config(state='disabled')
 
-        # Wait if the buffer is empty
-        while self.buffer.buffer_back_size.value == 1 or self.buffer.buffer_front_size.value == 1:
-            sleep(0.1)
-
-        # Synchronization event to signal when the thread is done
-        thread_done = threading.Event()
-
-        # 
-        def thread_target():
-            try:
-                self.buffer.move_forward([self.prev_button, self.next_button])
-            except Exception as e:
-                print(f"Error in thread: {e}")
-            finally:
-                thread_done.set()  # Signal that the thread is done
-
         # Start the thread
         thread = threading.Thread(target=thread_target)
         thread.start()
-
-        # Wait for the thread to finish (in order to avoid read-write conflicts)
-        while not thread_done.is_set():
-            sleep(0.1)
-
-        # Update current shown sample
-        self.sample_pos = self.buffer.current_pos
-        self.sample_index = self.dataset_to_show.index[self.sample_pos]
-        show_image(self)
-        self.update_infos()
-
-        # Handle navigation buttons
-        self.prev_button.config(state='normal')
-        self.next_button.config(state='normal')
 
     def show_previous_image(self):
+        def thread_target():
+            try:
+                while self.buffer.buffer_front_size.value == 1 or self.buffer.buffer_back_size.value == 1:
+                    sleep(0.5)
+                    self.loading_running = True
+                self.loading_running = False
+                self.buffer.move_backward()
+            except Exception as e:
+                print(f"Error in thread: {e}")
+            finally:
+                # Update current shown sample
+                self.sample_pos = self.buffer.current_pos
+                self.sample_index = self.dataset_to_show.index[self.sample_pos]
+                show_image(self)
+                self.update_infos()
+
         if self.num_dataset_to_show == 0:
             show_image(self)
             return
@@ -278,46 +340,9 @@ class ImageViewer:
         self.prev_button.config(state='disabled')
         self.next_button.config(state='disabled')
 
-        # Wait if the buffer is empty
-        while self.buffer.buffer_back_size.value == 1 or self.buffer.buffer_front_size.value == 1:
-            sleep(0.1)
-
-        # Synchronization event to signal when the thread is done
-        thread_done = threading.Event()
-
-        # 
-        def thread_target():
-            try:
-                self.buffer.move_backward([self.prev_button, self.next_button])
-            except Exception as e:
-                print(f"Error in thread: {e}")
-            finally:
-                thread_done.set()  # Signal that the thread is done
-
         # Start the thread
         thread = threading.Thread(target=thread_target)
         thread.start()
-
-        # Wait for the thread to finish (in order to avoid read-write conflicts)
-        while not thread_done.is_set():
-            sleep(0.1)
-
-        # Update current shown sample
-        self.sample_pos = self.buffer.current_pos
-        self.sample_index = self.dataset_to_show.index[self.sample_pos]
-        show_image(self)
-        self.update_infos()
-
-        # Handle navigation buttons
-        self.prev_button.config(state='normal')
-        self.next_button.config(state='normal')
-        # if self.num_dataset_to_show == 0:
-        #     show_image()
-        #     return
-        # self.sample_pos = (self.sample_pos - 1)  % len(self.dataset_to_show)  # Loop around
-        # self.sample_index = self.dataset_to_show.index[self.sample_pos]
-        # show_image(self)
-        # self.update_infos()
     
     def update_infos(self):
         # update files info

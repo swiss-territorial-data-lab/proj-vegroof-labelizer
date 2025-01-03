@@ -92,7 +92,7 @@ def clip_and_store(pause_event, polygons, margin_around_image, list_rasters_src,
                         # raise ValueError("Polygon did not match any raster!")
                         buffer_results.append((sample_pos, "no-sample", 0, 0))
                         buffer_size.value += 1
-                        print(f"New sample in buffer {buffer_type}: {sample_pos} - {temp_file_path}")
+                        print(f"New sample in buffer {buffer_type}: {sample_pos} - no-sample")
                         del buffer_tasks[0]
                         continue
                     elif len(matching_rasters) == 1:
@@ -107,7 +107,6 @@ def clip_and_store(pause_event, polygons, margin_around_image, list_rasters_src,
 
                     if img_arr.shape[0] == 4:
                         img_arr = img_arr[1:4, ...]
-                    print(img_arr.shape)
                     if len(img_arr.shape) != 3:
                         raise ValueError("Too many dimensions in the image!")
                     for pos, dim in enumerate(img_arr.shape):
@@ -116,7 +115,6 @@ def clip_and_store(pause_event, polygons, margin_around_image, list_rasters_src,
                             break
                         elif pos == 2:
                             raise ValueError("Too many bands in the image!")
-                    print(img_arr.shape)
                     # else:
                     #     print(img_arr.shape)
                     #     img_arr = np.moveaxis(img_arr, 2, 0)
@@ -203,7 +201,7 @@ def clip_and_store(pause_event, polygons, margin_around_image, list_rasters_src,
 
 
 class Buffer():
-    def __init__(self, rasters_src, polygons, buffer_front_max_size, buffer_back_max_size):
+    def __init__(self, rasters_src, polygons, margin_around_image, buffer_front_max_size, buffer_back_max_size):
 
         # Initialise variables
         #   _rasters and polygons info
@@ -220,7 +218,7 @@ class Buffer():
 
         #   _samples dimensions
         self.image_size = 512
-        self.margin_around_image = 50
+        self.margin_around_image = margin_around_image
 
         #   _current sample
         self.current_pos = 0
@@ -301,7 +299,7 @@ class Buffer():
             sleep(0.1)
         self.current_pos, self.current_file_path, self.current_deltax, self.current_deltay = self.result_front_list[0]
 
-    def move_forward(self, buttons):
+    def move_forward(self):
         # Change buffers
         error_occured = False
         try:
@@ -322,16 +320,14 @@ class Buffer():
             else:
                 self.task_front_list.append((self.result_front_list[-1][0] + 1) % len(self.polygons))
         except Exception as e:
-            print("An error happened :", e)
+            print("An error happened during moving forward on buffer:", e)
             print("Restarting buffer..")
             error_occured = True
         finally:
             if error_occured:
                 self.reset()
-            # for button in buttons:
-            #     button.config(state='normal')
 
-    def move_backward(self, buttons):
+    def move_backward(self):
         # change buffers
         error_occured = False
         try:
@@ -352,14 +348,12 @@ class Buffer():
             else:
                 self.task_back_list.append((self.result_back_list[-1][0] - 1) % len(self.polygons))
         except Exception as e:
-            print("An error happened :", e)
+            print("An error happened during moving forward on buffer:", e)
             print("Restarting buffer..")
             error_occured = True
         finally:
             if error_occured:
                 self.reset()
-            # for button in buttons:
-            #     button.config(state='normal')
 
     def delete_sample(self):
         try:
@@ -631,7 +625,7 @@ class App(tk.Tk):
         self.next_button.config(state='disabled')
         while self.buffer.buffer_back_size.value == 1 or self.buffer.buffer_front_size.value == 1:
             sleep(0.1)
-        thread = threading.Thread(target=self.buffer.move_backward, args=([self.prev_button, self.next_button],))
+        thread = threading.Thread(target=self.buffer.move_backward)
         thread.start()
 
     def on_next(self):
@@ -640,7 +634,7 @@ class App(tk.Tk):
         self.next_button.config(state='disabled')
         while self.buffer.buffer_back_size.value == 1 or self.buffer.buffer_front_size.value == 1:
             sleep(0.1)
-        thread = threading.Thread(target=self.buffer.move_forward, args=([self.prev_button, self.next_button],))
+        thread = threading.Thread(target=self.buffer.move_forward)
         thread.start()
 
     def update(self):

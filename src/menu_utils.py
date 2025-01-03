@@ -4,7 +4,7 @@ import numpy as np
 import pickle
 import rasterio
 import pandas as pd
-from time import sleep
+from time import sleep, time
 from tkinter import Tk, Menu, Label, Button, Frame, Text, font, filedialog, messagebox, Checkbutton, Scrollbar, IntVar, Canvas,Toplevel
 from tkinter.scrolledtext import ScrolledText
 from tkinter import ttk
@@ -12,6 +12,11 @@ from tkinter.ttk import Combobox
 from ttkwidgets import CheckboxTreeview
 import geopandas as gpd
 from functools import partial
+import threading
+
+
+import sys
+sys.path.insert(0,'D:\GitHubProjects\STDL_sample_labelizer')
 from src.processing import show_confusion_matrix
 from src.buffer import Buffer
 
@@ -396,6 +401,30 @@ def menu_mode_choice(self, mode_window):
 
 
 def load(self, mode=0):
+    def start_buffer():
+        try:
+            if self.buffer:
+                self.buffer.purge()
+        finally:
+            try:
+                self.buffer = Buffer(
+                    rasters_src=self.raster_path,
+                    polygons=self.dataset_to_show,
+                    margin_around_image=self.margin_around_image,
+                    buffer_front_max_size=self.buffer_front_max_size,
+                    buffer_back_max_size=self.buffer_back_max_size,
+                )
+                self.buffer.current_pos = self.sample_pos
+                self.buffer.start()
+                self.show_image()
+            except Exception as e:
+                print("An error occured while initiating buffer: ", e)
+            finally:
+                # Activate navigation buttons
+                set_all_states(self.root, 'normal')
+                self.loading_running = False
+                self.buffer_infos_lbl.config(text="")
+
     # test if ongoing unsaved project
     if self.UnsavedChanges == True:
         result = messagebox.askyesnocancel("Confirmation", "There is unsaved changes! Do you want to save?")
@@ -405,7 +434,7 @@ def load(self, mode=0):
             pass
         else:
             return
-        
+
     # load polygon
     if mode in [0,1]:
         self.polygon_path = filedialog.askopenfilename(
@@ -535,31 +564,17 @@ def load(self, mode=0):
 
         # Activate categorie buttons
         for idx, (val, label) in enumerate(self.interest_col_val_to_lbl.items()):
-            print(idx)
             label = label[0:13] + '..' if len(label) > 15 else label
             self.lst_buttons_category[idx].config(text=label, state='normal')
             self.attribute_button_command(self.lst_buttons_category[idx], val)
-
-        # Activate navigation buttons
-        self.next_button.config(state='normal')
-        self.prev_button.config(state='normal')
         
         # Initiate buffer
-        try:
-            if self.buffer:
-                self.buffer.purge()
-        finally:
-            self.buffer = Buffer(
-                rasters_src=self.raster_path,
-                polygons=self.dataset_to_show,
-                buffer_front_max_size=self.buffer_front_max_size,
-                buffer_back_max_size=self.buffer_back_max_size,
-            )
-            self.buffer.current_pos = self.sample_pos
-            self.buffer.start()
-            self.show_image()
+        set_all_states(self.root, 'disabled')
+        self.buffer_infos_lbl.config(text="Initialising buffer...")
+        self.loading_running = True
+        threading.Thread(target=start_buffer).start()
 
-    if self.polygon_path != "" or self.raster_path != "":
+    elif self.polygon_path != "" or self.raster_path != "":
         self.update_infos()
     
 
@@ -657,6 +672,7 @@ def exit(self):
             pass
         else:
             return
+        
     if self.buffer:
         self.buffer.purge()
     self.root.quit()
@@ -674,6 +690,33 @@ def sort_and_filter(self):
     return new_df
 
 
+def thread_restart_buffer(self):
+    # Reset buffer and then update shown infos
+    try:
+        self.buffer.restart()
+    except Exception as e:
+        print("An error occured while restarting buffer: ", e)
+    finally:
+        self.update_infos()
+        self.show_image()
+        self.loading_running = False
+        self.buffer_infos_lbl.config(text="")
+        set_all_states(self.root, 'normal')
+        # self.next_button.config(state='normal')
+        # self.prev_button.config(state='normal')
+        # for btn in self.lst_buttons_category:
+        #     btn.config(state='normal')
+        # self.removeSample_button.config(state='normal')
+
+
+def set_all_states(parent, state):
+    for child in parent.winfo_children():
+        if isinstance(child, (ttk.Button, Text, ttk.Combobox)):
+            child.config(state=state)
+        elif isinstance(child, Frame):
+            set_all_states(child, state)
+
+
 def order(self):
     def ok_button_pressed(window, combobox, radio_selection):
         if combobox.get() == "Select an option":
@@ -682,21 +725,6 @@ def order(self):
         self.order_var = combobox.get()
         order = radio_selection.get()
         self.order_asc = order == 'asc'
-
-        # Update dataframe to show
-        # self.new_dataset = self.new_dataset.sort_values(
-        #     by=[self.order_var], 
-        #     axis=0, 
-        #     ascending= self.order_asc)
-        # self.dataset_to_show = self.dataset_to_show.sort_values(
-        #     by=[self.order_var], 
-        #     axis=0, 
-        #     ascending= self.order_asc)
-        
-        # self.buffer.polygons = self.buffer.polygons.sort_values(
-        #     by=[self.order_var], 
-        #     axis=0, 
-        #     ascending= self.order_asc)
         self.dataset_to_show = sort_and_filter(self)
         self.buffer.polygons = sort_and_filter(self)
         self.sample_pos = self.dataset_to_show.index.get_loc(self.sample_index)
@@ -706,16 +734,16 @@ def order(self):
         self.buffer.current_file_path = ""
         self.original_image = None
         self.display_image = None
+        
+        # Prepare interface for buffer reset
+        set_all_states(self.root, 'disabled')
 
-        # Reset buffer and then update shown infos
-        try:
-            self.buffer.restart()
-        except Exception as e:
-            print("an error occured while reseting buffer: ", e)
-        finally:
-            self.update_infos()
-            self.show_image()
-            window.destroy()
+        # Restart buffer
+        self.buffer_infos_lbl.config(text="Restarting buffer...")
+        self.loading_running = True
+        threading.Thread(target=thread_restart_buffer, args=[self,]).start()
+
+        window.destroy()
 
     # Retrieve categories from dataset
     if len(self.new_dataset) == 0 or self.polygon_path == None:
@@ -760,32 +788,27 @@ def order(self):
 def open_list_cat(self):
     def ok_button_pressed(window, tree):
         checked_items = tree.get_checked()
+
+        # Security
+        if len(checked_items) == 0:
+            messagebox.showwarning("Information", "At least one category must be selected!")
+            return
+
         checked_texts = [str(tree.item(item, "text")) for item in checked_items]
         self.shown_cat = checked_texts
-        # shown_cat_keys = [key for key,val in self.frac_col_val_to_lbl.items() if val in self.shown_cat]
-        # indexes = self.new_dataset.loc[self.new_dataset[self.frac_col].astype('string').isin(shown_cat_keys)].index
-        # self.dataset_to_show = self.new_dataset.loc[indexes].copy()
-        # self.dataset_to_show = self.new_dataset.sort_values(
-        #     by=[self.order_var], 
-        #     axis=0, 
-        #     ascending= self.order_asc
-        # ).loc[self.dataset_to_show.index.isin(indexes)]
-
-        # self.buffer.polygons = self.new_dataset.sort_values(
-        #     by=[self.order_var], 
-        #     axis=0, 
-        #     ascending= self.order_asc
-        # ).loc[self.dataset_to_show.index.isin(indexes)]
         self.dataset_to_show = sort_and_filter(self)
         self.buffer.polygons = sort_and_filter(self)
         self.num_dataset_to_show = len(self.dataset_to_show)
 
+        # If no samples with selection
+        if len(self.dataset_to_show) == 0:
+            messagebox.showwarning("Information", "With current selection, no samples are available!")
+            return
+        
+        # Set new current sample
         if self.sample_index not in list(self.dataset_to_show.index):
             higher_numbers = [x for x in self.dataset_to_show.index if x > self.sample_index]
-            self.sample_index = min(higher_numbers)
-            # self.sample_index = self.dataset_to_show.index[self.sample_pos]
-            # self.show_image()
-
+            self.sample_index = min(higher_numbers) if len(higher_numbers) > 0 else 0
         self.sample_pos = self.dataset_to_show.index.get_loc(self.sample_index)
         
         # Prepare for buffer reset
@@ -793,34 +816,16 @@ def open_list_cat(self):
         self.buffer.current_file_path = ""
         self.original_image = None
         self.display_image = None
+        
+        # Prepare interface for buffer reset
+        set_all_states(self.root, 'disabled')
 
-        # Reset buffer and then update shown infos
-        try:
-            self.buffer.restart()
-        except Exception as e:
-            print("an error occured while reseting buffer: ", e)
-        finally:
-            self.update_infos()
-            self.show_image()
-            window.destroy()
+        # Restart buffer
+        self.buffer_infos_lbl.config(text="Restarting buffer...")
+        self.loading_running = True
+        threading.Thread(target=thread_restart_buffer, args=[self,]).start()
 
-        # # Prepare for buffer reset
-        # self.buffer.current_pos = self.sample_pos
-        # self.buffer.current_file_path = ""
-        # self.original_image = None
-        # self.display_image = None
-
-        # # Reset buffer and then update shown infos
-        # try:
-        #     self.buffer.reset()
-        # except Exception as e:
-        #     print("an error occured while reseting buffer: ", e)
-        # finally:
-        #     self.update_infos()
-        #     self.show_image()
-        #     window.destroy()
-        # self.update_infos()
-        # window.destroy()
+        window.destroy()
 
     # Retrieve categories from dataset
     if len(self.new_dataset) == 0 or self.polygon_path == None:
@@ -917,6 +922,94 @@ def open_list_meta(self):
     ok_button = ttk.Button(checkbox_window, text='OK', command=partial(ok_button_pressed, checkbox_window, tree))
     ok_button.pack()
 
+def open_settings(self):
+    def ok_button_pressed(window):
+        # Control Zooming
+
+        # Control Context
+
+        # Control Buffer
+
+        # Update variables
+
+
+        self.update_infos()
+        window.destroy()
+
+
+    # Create a Toplevel window (popup)
+    Settings_window = Toplevel(self.root)
+    Settings_window.title("Settings")
+    root_pos = [self.root.winfo_x(), self.root.winfo_y()]
+    root_dim = [self.root.winfo_width(), self.root.winfo_height()]
+    Settings_window.geometry(f"300x300+{int(root_pos[0]+root_dim[0]/2-200)}+{int(root_pos[1]+root_dim[1]/2-150)}")
+
+    # Zooming part
+    frame_zooming = Frame(Settings_window, relief=tk.RIDGE, borderwidth=2, width=280, height=60)
+    frame_zooming.pack(pady=10, padx=10)
+    frame_zooming.pack_propagate(False)
+
+    #   _zooming boundary
+    frame_zooming_bound = Frame(frame_zooming, width=280, height=30,)
+    frame_zooming_bound.pack()
+    frame_zooming_bound.pack_propagate(False)
+    lbl_zooming_bound = Label(frame_zooming_bound, text="Zooming boundary :", width=18, justify='left', anchor='w')
+    lbl_zooming_bound.pack(side="left", padx=10, anchor='w')
+    txt_zooming_bound = Text(frame_zooming_bound, wrap='none', width=4, height=1)
+    txt_zooming_bound.pack(side="right", padx=30)
+    txt_zooming_bound.insert("1.0", str(self.zooming_max))
+
+    #   _zooming drag linked to zoom
+    frame_zooming_drag = Frame(frame_zooming, width=280, height=30)
+    frame_zooming_drag.pack()
+    frame_zooming_drag.pack_propagate(False)
+    lbl_zooming_drag = Label(frame_zooming_drag, text="Drag linked to zoom :", width=20, justify='left', anchor='w')
+    lbl_zooming_drag.pack(side="left", padx=10, anchor='w')
+    do_link_drag_zoom = tk.IntVar()
+    cb_zooming_drag = Checkbutton(frame_zooming_drag, text="", variable=do_link_drag_zoom)
+    cb_zooming_drag.pack(side='right', padx=30)
+
+    # Context part
+    frame_context = Frame(Settings_window, relief=tk.RIDGE, borderwidth=2, width=280, height=40)
+    frame_context.pack(pady=10)
+    frame_context.pack_propagate(False)
+    lbl_context = Label(frame_context, text="Context size :", width=18, justify='left', anchor='w')
+    lbl_context.pack(side='left', padx=10)
+    txt_context = Text(frame_context, wrap='none', width=4, height=1)
+    txt_context.pack(side="right", padx=30)
+    txt_context.insert("1.0", str(self.margin_around_image))
+
+    # Buffer part
+    frame_buffer = Frame(Settings_window, relief=tk.RIDGE, borderwidth=2, width=280, height=90)
+    frame_buffer.pack(pady=10)
+    frame_buffer.pack_propagate(False)
+    lbl_buffer_1 = Label(frame_buffer, text='Buffer sizes: ', justify='left', anchor='w', width=200)
+    lbl_buffer_1.pack(padx=10)
+    
+    #   _front buffer
+    frame_buffer_front = Frame(frame_buffer, width=280, height=30)
+    frame_buffer_front.pack()
+    frame_buffer_front.pack_propagate(False)
+    lbl_buffer_front = Label(frame_buffer_front, text='\t     - front :', justify='right', anchor='w', width=20)
+    lbl_buffer_front.pack(side='left', padx=10)
+    txt_buffer_front = Text(frame_buffer_front, wrap='none', width=4, height=1)
+    txt_buffer_front.pack(side='right', padx=30)
+    txt_buffer_front.insert("1.0", str(self.buffer_front_max_size))
+
+    #   _back buffer
+    frame_buffer_back = Frame(frame_buffer, width=280, height=30)
+    frame_buffer_back.pack()
+    frame_buffer_back.pack_propagate(False)
+    lbl_buffer_back = Label(frame_buffer_back, text='\t     - back :', justify='left', anchor='w', width=20)
+    lbl_buffer_back.pack(side='left', padx=10)
+    txt_buffer_back = Text(frame_buffer_back, wrap='none', width=4, height=1)
+    txt_buffer_back.pack(side='right', padx=30)
+    txt_buffer_back.insert("1.0", str(self.buffer_back_max_size))
+
+    # OK button
+    ok_button = ttk.Button(Settings_window, text='OK', command=partial(ok_button_pressed, Settings_window))
+    ok_button.pack()
+
 
 def remove_sample(self):
     # verify if polygon loaded
@@ -950,11 +1043,20 @@ def remove_sample(self):
         self.update_infos()
         self.show_image()
 
+class Test():
+    def __init__(self):
+        self.root = tk.Tk()
+        open_settings(self)
+        self.root.mainloop()
+        print('derp')
+
 
 if __name__ == '__main__':
     """polygon_path = "D:/GitHubProjects/STDL_Classifier/data/sources/gt_MNC_filtered.gpkg"
     data = gpd.read_file(polygon_path)
     data.drop('geometry', axis=1).to_csv("D:/GitHubProjects/STDL_Classifier/data/sources/gt_MNC_filtered_corrected/gt_MNC_filtered.gpkg.csv", sep=';', index=None)"""
-    lst = ['a', 'b', 'c']
-    lst.remove('a')
-    print(lst)
+    # lst = ['a', 'b', 'c']
+    # lst.remove('a')
+    # print(lst)
+    test = Test()
+

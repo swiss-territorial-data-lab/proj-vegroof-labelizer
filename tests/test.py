@@ -1,44 +1,22 @@
 import tkinter as tk
 
-class Tooltip:
-    def __init__(self, widget, text):
-        self.widget = widget
-        self.text = text
-        self.tip_window = None
-
-        # Bind mouse events to the widget
-        self.widget.bind("<Enter>", self.show_tooltip)
-        self.widget.bind("<Leave>", self.hide_tooltip)
-
-    def show_tooltip(self, event):
-        # Create the tooltip window
-        if self.tip_window is not None:
-            return
-
-        x = self.widget.winfo_rootx() + 10  # Slight offset to avoid overlap
-        y = self.widget.winfo_rooty() + 10
-        self.tip_window = tk.Toplevel(self.widget)
-        self.tip_window.wm_overrideredirect(True)  # Remove window decorations
-        self.tip_window.wm_geometry(f"+{x}+{y}")
-
-        # Add the text to the tooltip window
-        label = tk.Label(self.tip_window, text=self.text, background="yellow", relief="solid", borderwidth=1)
-        label.pack()
-
-    def hide_tooltip(self, event):
-        # Destroy the tooltip window
-        if self.tip_window:
-            self.tip_window.destroy()
-            self.tip_window = None
-
-# Example usage
 root = tk.Tk()
-root.title("Tooltip Example")
+root.title("Frame Inside a Frame")
 
-# Create a label with a tooltip
-label = tk.Label(root, text="Hover over me!", font=("Arial", 14))
-label.pack(pady=20, padx=20)
+# Create the outer frame
+outer_frame = tk.Frame(root, width=300, height=200, bg="lightblue")
+outer_frame.pack(padx=10, pady=10)
 
-tooltip = Tooltip(label, "This is some helpful information.")
+# Create the inner frame
+inner_frame = tk.Frame(outer_frame, width=1000, height=100, bg="lightgreen")
+inner_frame.pack(pady=20)
+
+# Add content to the inner frame (optional)
+label = tk.Label(inner_frame, text="Inner Frame Content")
+label.pack()
+
+# Prevent the frames from resizing to fit their contents
+outer_frame.pack_propagate(False)
+inner_frame.pack_propagate(False)
 
 root.mainloop()

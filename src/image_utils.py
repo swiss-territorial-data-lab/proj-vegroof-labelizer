@@ -28,33 +28,41 @@ def show_image(self):
     if self.buffer:
         while self.buffer.current_file_path == "":
             sleep(0.1)
+    error_happened = False
+    try:
+        # When no matching raster
+        if len(self.list_rasters_src) == 0 or len(self.dataset_to_show) == 0 or (self.buffer and self.buffer.current_file_path == 'no-sample'):
+            self.original_image = Image.open("./src/no_image.png").resize((self.img_width, self.img_height))
+            self.display_image = self.original_image.copy()
+            self.photo = ImageTk.PhotoImage(self.display_image)
+            self.image_id = self.image.create_image(0, 0, anchor=tk.NW, image=self.photo)
+            self.title.config(text="No sample to display")
+            return
 
-    # When no matching raster
-    if len(self.list_rasters_src) == 0 or len(self.dataset_to_show) == 0 or (self.buffer and self.buffer.current_file_path == 'no-sample'):
-        self.original_image = Image.open("./src/no_image.png").resize((self.img_width, self.img_height))
+        # Show image and title
+        self.original_image = Image.open(self.buffer.current_file_path)
         self.display_image = self.original_image.copy()
         self.photo = ImageTk.PhotoImage(self.display_image)
         self.image_id = self.image.create_image(0, 0, anchor=tk.NW, image=self.photo)
-        self.title.config(text="No sample to display")
-        return
+        # cat = self.dataset_to_show.iloc[self.sample_pos][self.frac_col]
+        # self.title.config(text=f"sample {self.sample_index} - {self.frac_col_val_to_lbl[str(cat)]}")
 
-    # Show image and title
-    # self.original_image = Image.fromarray(np.uint8(padded_image))
-    self.original_image = Image.open(self.buffer.current_file_path)
-    self.display_image = self.original_image.copy()
-    self.photo = ImageTk.PhotoImage(self.display_image)
-    self.image_id = self.image.create_image(0, 0, anchor=tk.NW, image=self.photo)
-    # cat = self.dataset_to_show.iloc[self.sample_pos][self.frac_col]
-    # self.title.config(text=f"sample {self.sample_index} - {self.frac_col_val_to_lbl[str(cat)]}")
-
-    # apply initial zoom
-    a = (max(self.buffer.current_deltax, self.buffer.current_deltay) + 2 * self.margin_around_image)
-    b = max(self.buffer.current_deltax, self.buffer.current_deltay)
-    self.initial_zoom = b and a / b or 0
-    self.current_zoom = self.initial_zoom / 1.1
-    self.offset_x = 0.5
-    self.offset_y = 0.5
-    self.update_image()
+        # apply initial zoom
+        a = (max(self.buffer.current_deltax, self.buffer.current_deltay) + 2 * self.margin_around_image)
+        b = max(self.buffer.current_deltax, self.buffer.current_deltay)
+        self.initial_zoom = b and a / b or 0
+        self.current_zoom = self.initial_zoom / 1.1
+        self.offset_x = 0.5
+        self.offset_y = 0.5
+        self.update_image()
+    except Exception as e:
+        print("An error while trying to show image: ", e)
+        print("Restarting buffer..")
+        self.buffer.reset()
+        error_happened = True
+    finally:
+        if error_happened:
+            self.show_image()
 
 # def show_image(self):
 #     if len(self.list_rasters_src) == 0 or len(self.dataset_to_show) == 0:
@@ -276,7 +284,7 @@ def zoom(self, event):
         self.current_zoom /= 1.1
 
     # Constrain zoom level
-    self.current_zoom = max(1.0, min(self.current_zoom, self.initial_zoom * 1.5))
+    self.current_zoom = max(1.0, min(self.current_zoom, self.initial_zoom * self.zooming_max))
   
     # Constrain offsets to stay within the image boundaries
     offset_x_max = 0.5 * (2 - 1/self.current_zoom)
