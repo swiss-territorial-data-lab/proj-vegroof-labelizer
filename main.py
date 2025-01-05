@@ -45,6 +45,7 @@ class ImageViewer:
         self.metadata = {}
 
         self.zooming_max = 1.5
+        self.drag_prop_to_zoom = True
         self.margin_around_image = 50
       
 

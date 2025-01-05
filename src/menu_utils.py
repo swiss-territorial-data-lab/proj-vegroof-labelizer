@@ -693,7 +693,7 @@ def sort_and_filter(self):
 def thread_restart_buffer(self):
     # Reset buffer and then update shown infos
     try:
-        self.buffer.restart()
+        self.buffer.restart(self.buffer_front_max_size, self.buffer_back_max_size, self.margin_around_image)
     except Exception as e:
         print("An error occured while restarting buffer: ", e)
     finally:
@@ -924,16 +924,58 @@ def open_list_meta(self):
 
 def open_settings(self):
     def ok_button_pressed(window):
-        # Control Zooming
+        # print(do_link_drag_zoom.get())
+        # return
+        zooming_max_text = txt_zooming_bound.get("1.0", "end-1c")
+        margin_around_image_text = txt_context.get("1.0", "end-1c")
+        buffer_front_text = txt_buffer_front.get("1.0", "end-1c")
+        buffer_back_text = txt_buffer_back.get("1.0", "end-1c")
+        try:
+            # Control Zooming
+            zooming_max_text = float(zooming_max_text)
 
-        # Control Context
+            # Control Context
+            margin_around_image_text = int(margin_around_image_text)
 
-        # Control Buffer
+            # Control Buffer
+            buffer_front_text = int(buffer_front_text)
+            buffer_back_text = int(buffer_back_text)
+
+            # Test ranges
+            if not 1 <= zooming_max_text <= 10:
+                raise ValueError("Zooming max should be in range [1, 10]")
+            if not 0 <= margin_around_image_text <= 1000:
+                raise ValueError("Margin around image should be in range [0, 1000]")
+            if buffer_front_text < 2:
+                raise ValueError("Front buffer should be higher or equal to 2")
+            if buffer_back_text < 2:
+                raise ValueError("Back buffer should be higher or equal to 2")
+
+        except Exception as e:
+            messagebox.showwarning("warning", e)
+            Settings_window.focus_set()
+            return
+        
+        # Check if need to restart buffer
+        do_restart_buffer = False
+        if self.margin_around_image != int(margin_around_image_text) or self.buffer_front_max_size != int(buffer_front_text) or self.buffer_back_max_size != int(buffer_back_text):
+            do_restart_buffer = True
 
         # Update variables
+        self.zooming_max = float(zooming_max_text)
+        self.drag_prop_to_zoom = bool(do_link_drag_zoom.get())
+        self.margin_around_image = int(margin_around_image_text)
+        self.buffer_front_max_size = int(buffer_front_text)
+        self.buffer_back_max_size = int(buffer_back_text)
 
+        # Restart buffer if necessary and update
+        if self.buffer and do_restart_buffer:# Restart buffer
+            self.buffer_infos_lbl.config(text="Restarting buffer...")
+            self.loading_running = True
+            threading.Thread(target=thread_restart_buffer, args=[self,]).start()
+        else:
+            self.update_infos()
 
-        self.update_infos()
         window.destroy()
 
 
@@ -953,7 +995,7 @@ def open_settings(self):
     frame_zooming_bound = Frame(frame_zooming, width=280, height=30,)
     frame_zooming_bound.pack()
     frame_zooming_bound.pack_propagate(False)
-    lbl_zooming_bound = Label(frame_zooming_bound, text="Zooming boundary :", width=18, justify='left', anchor='w')
+    lbl_zooming_bound = Label(frame_zooming_bound, text="Zooming max :", width=18, justify='left', anchor='w')
     lbl_zooming_bound.pack(side="left", padx=10, anchor='w')
     txt_zooming_bound = Text(frame_zooming_bound, wrap='none', width=4, height=1)
     txt_zooming_bound.pack(side="right", padx=30)
@@ -965,7 +1007,7 @@ def open_settings(self):
     frame_zooming_drag.pack_propagate(False)
     lbl_zooming_drag = Label(frame_zooming_drag, text="Drag linked to zoom :", width=20, justify='left', anchor='w')
     lbl_zooming_drag.pack(side="left", padx=10, anchor='w')
-    do_link_drag_zoom = tk.IntVar()
+    do_link_drag_zoom = tk.IntVar(value=int(self.drag_prop_to_zoom))
     cb_zooming_drag = Checkbutton(frame_zooming_drag, text="", variable=do_link_drag_zoom)
     cb_zooming_drag.pack(side='right', padx=30)
 
@@ -1043,13 +1085,6 @@ def remove_sample(self):
         self.update_infos()
         self.show_image()
 
-class Test():
-    def __init__(self):
-        self.root = tk.Tk()
-        open_settings(self)
-        self.root.mainloop()
-        print('derp')
-
 
 if __name__ == '__main__':
     """polygon_path = "D:/GitHubProjects/STDL_Classifier/data/sources/gt_MNC_filtered.gpkg"
@@ -1058,5 +1093,5 @@ if __name__ == '__main__':
     # lst = ['a', 'b', 'c']
     # lst.remove('a')
     # print(lst)
-    test = Test()
+    pass
 

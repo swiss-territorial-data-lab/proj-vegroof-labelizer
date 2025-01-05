@@ -260,6 +260,7 @@ class Buffer():
             pos = (self.current_pos - i)  % len(self.polygons)  # Loop around
             self.task_back_list.append(pos)
 
+        print(self.buffer_back_max_size)
         # Start the buffer processes
         self.buffer_front_process = multiprocessing.Process(
             target=clip_and_store, 
@@ -357,7 +358,7 @@ class Buffer():
 
     def delete_sample(self):
         try:
-            old_pos, old_path, new_deltax, new_deltay = self.result_front_list.pop(0)  
+            _, old_path, _, _ = self.result_front_list.pop(0)  
             self.current_pos, self.current_file_path, _, _ = self.result_front_list[0]
             self.buffer_front_size.value -= 1
             if old_path != 'no-sample':
@@ -434,7 +435,7 @@ class Buffer():
         shutil.rmtree(self.temp_front_dir)
         shutil.rmtree(self.temp_back_dir)
 
-    def restart(self):
+    def restart(self, front_max_size, back_max_size, margin_around_image):
         try:
             self.purge()
         finally:
@@ -453,8 +454,16 @@ class Buffer():
             self.buffer_front_size.value = 0
             self.buffer_back_size.value = 0
 
+            #   _max size
+            print(back_max_size)
+            self.buffer_front_max_size = front_max_size
+            self.buffer_back_max_size = back_max_size
+
+            #   _margin
+            self.margin_around_image = margin_around_image
+
+            # Restart buffer
             self.start()
-            # for i in range(len(self.task_fpend(pos)
 
     def test(self):
 
