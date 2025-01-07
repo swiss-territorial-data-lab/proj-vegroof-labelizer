@@ -421,7 +421,7 @@ def load(self, mode=0):
                 print("An error occured while initiating buffer: ", e)
             finally:
                 # Activate navigation buttons
-                set_all_states(self.root, 'normal')
+                set_all_states(self.root, 'normal', self.menu_bar)
                 self.loading_running = False
                 self.buffer_infos_lbl.config(text="")
 
@@ -569,19 +569,22 @@ def load(self, mode=0):
             self.attribute_button_command(self.lst_buttons_category[idx], val)
         
         # Initiate buffer
-        set_all_states(self.root, 'disabled')
-        self.buffer_infos_lbl.config(text="Initialising buffer...")
-        self.loading_running = True
-        threading.Thread(target=start_buffer).start()
+        try:
+            set_all_states(self.root, 'disabled', self.menu_bar)
+            self.buffer_infos_lbl.config(text="Initialising buffer...")
+            self.loading_running = True
+            threading.Thread(target=start_buffer).start()
+        finally:
+            self.update_infos()
 
     elif self.polygon_path != "" or self.raster_path != "":
         self.update_infos()
     
 
 def save(self):
-    if self.UnsavedChanges == 0:
-        _ = messagebox.showinfo("Information", "No changes has been detected.")
-        return
+    # if self.UnsavedChanges == 0:
+    #     _ = messagebox.showinfo("Information", "No changes has been detected.")
+    #     return
 
     # create new gpgk file
     try:
@@ -664,6 +667,12 @@ def save(self):
 
 
 def exit(self):
+    # Check if program processing
+    if self.loading_running:
+        messagebox.showwarning("Process running", "Please, wait for the running processes to finish before quitting.")
+        return
+    
+    # Check if unsaved changes
     if self.UnsavedChanges == True:
         result = messagebox.askyesnocancel("Confirmation", "There is unsaved changes! Do you want to save?")
         if result == True:
@@ -672,9 +681,11 @@ def exit(self):
             pass
         else:
             return
-        
+    
+    # Purge the buffer before quitting
     if self.buffer:
         self.buffer.purge()
+
     self.root.quit()
 
 
@@ -690,31 +701,35 @@ def sort_and_filter(self):
     return new_df
 
 
-def thread_restart_buffer(self):
+def thread_restart_buffer(self, mode='restart'):
     # Reset buffer and then update shown infos
     try:
         self.buffer.restart(self.buffer_front_max_size, self.buffer_back_max_size, self.margin_around_image)
     except Exception as e:
         print("An error occured while restarting buffer: ", e)
+        try:
+            save(self)
+            print("For safety measures, the current state of the work was saved.")
+        except Exception as e:
+            print("During the management of the error, the program tried to save the work but did not manage due to the following error", e)
+        
     finally:
+        self.loading_running = False
         self.update_infos()
         self.show_image()
-        self.loading_running = False
         self.buffer_infos_lbl.config(text="")
-        set_all_states(self.root, 'normal')
-        # self.next_button.config(state='normal')
-        # self.prev_button.config(state='normal')
-        # for btn in self.lst_buttons_category:
-        #     btn.config(state='normal')
-        # self.removeSample_button.config(state='normal')
+        set_all_states(self.root, 'normal', self.menu_bar)
 
 
-def set_all_states(parent, state):
+def set_all_states(parent, state, menu=None):
     for child in parent.winfo_children():
         if isinstance(child, (ttk.Button, Text, ttk.Combobox)):
             child.config(state=state)
         elif isinstance(child, Frame):
             set_all_states(child, state)
+    if menu:   
+        for i in range(menu.index('end') + 1):  # Iterate through all items
+            menu.entryconfig(i, state=state)
 
 
 def order(self):
@@ -736,7 +751,7 @@ def order(self):
         self.display_image = None
         
         # Prepare interface for buffer reset
-        set_all_states(self.root, 'disabled')
+        set_all_states(self.root, 'disabled', self.menu_bar)
 
         # Restart buffer
         self.buffer_infos_lbl.config(text="Restarting buffer...")
@@ -818,7 +833,7 @@ def open_list_cat(self):
         self.display_image = None
         
         # Prepare interface for buffer reset
-        set_all_states(self.root, 'disabled')
+        set_all_states(self.root, 'disabled', self.menu_bar)
 
         # Restart buffer
         self.buffer_infos_lbl.config(text="Restarting buffer...")
@@ -923,7 +938,7 @@ def open_list_meta(self):
     ok_button.pack()
 
 def open_settings(self):
-    def ok_button_pressed(window):
+    def ok_button_pressed(window, event=None):
         # print(do_link_drag_zoom.get())
         # return
         zooming_max_text = txt_zooming_bound.get("1.0", "end-1c")
@@ -932,23 +947,43 @@ def open_settings(self):
         buffer_back_text = txt_buffer_back.get("1.0", "end-1c")
         try:
             # Control Zooming
-            zooming_max_text = float(zooming_max_text)
-
+            try:
+                zooming_max_text = float(zooming_max_text)
+            except Exception as e:
+                txt_zooming_bound.delete("1.0", "end-1c")
+                raise e
+            
             # Control Context
-            margin_around_image_text = int(margin_around_image_text)
+            try:
+                margin_around_image_text = int(margin_around_image_text)
+            except Exception as e:
+                txt_context.delete("1.0", "end-1c")
+                raise e
 
             # Control Buffer
-            buffer_front_text = int(buffer_front_text)
-            buffer_back_text = int(buffer_back_text)
-
+            try:
+                buffer_front_text = int(buffer_front_text)
+            except Exception as e:
+                txt_buffer_front.delete("1.0", "end-1c")
+                raise e
+            try:
+                buffer_back_text = int(buffer_back_text)
+            except Exception as e:
+                txt_buffer_back.delete("1.0", "end-1c")
+                raise e
+                
             # Test ranges
             if not 1 <= zooming_max_text <= 10:
+                txt_zooming_bound.delete("1.0", "end-1c")
                 raise ValueError("Zooming max should be in range [1, 10]")
             if not 0 <= margin_around_image_text <= 1000:
+                txt_context.delete("1.0", "end-1c")
                 raise ValueError("Margin around image should be in range [0, 1000]")
             if buffer_front_text < 2:
+                txt_buffer_front.delete("1.0", "end-1c")
                 raise ValueError("Front buffer should be higher or equal to 2")
             if buffer_back_text < 2:
+                txt_buffer_back.delete("1.0", "end-1c")
                 raise ValueError("Back buffer should be higher or equal to 2")
 
         except Exception as e:
@@ -970,6 +1005,10 @@ def open_settings(self):
 
         # Restart buffer if necessary and update
         if self.buffer and do_restart_buffer:# Restart buffer
+            # Prepare interface for buffer reset
+            set_all_states(self.root, 'disabled', self.menu_bar)
+
+            # Restart buffer
             self.buffer_infos_lbl.config(text="Restarting buffer...")
             self.loading_running = True
             threading.Thread(target=thread_restart_buffer, args=[self,]).start()
@@ -1000,6 +1039,7 @@ def open_settings(self):
     txt_zooming_bound = Text(frame_zooming_bound, wrap='none', width=4, height=1)
     txt_zooming_bound.pack(side="right", padx=30)
     txt_zooming_bound.insert("1.0", str(self.zooming_max))
+    txt_zooming_bound.bind("<Return>",  partial(ok_button_pressed, Settings_window))
 
     #   _zooming drag linked to zoom
     frame_zooming_drag = Frame(frame_zooming, width=280, height=30)
@@ -1020,6 +1060,7 @@ def open_settings(self):
     txt_context = Text(frame_context, wrap='none', width=4, height=1)
     txt_context.pack(side="right", padx=30)
     txt_context.insert("1.0", str(self.margin_around_image))
+    txt_context.bind("<Return>",  partial(ok_button_pressed, Settings_window))
 
     # Buffer part
     frame_buffer = Frame(Settings_window, relief=tk.RIDGE, borderwidth=2, width=280, height=90)
@@ -1037,6 +1078,7 @@ def open_settings(self):
     txt_buffer_front = Text(frame_buffer_front, wrap='none', width=4, height=1)
     txt_buffer_front.pack(side='right', padx=30)
     txt_buffer_front.insert("1.0", str(self.buffer_front_max_size))
+    txt_buffer_front.bind("<Return>",  partial(ok_button_pressed, Settings_window))
 
     #   _back buffer
     frame_buffer_back = Frame(frame_buffer, width=280, height=30)
@@ -1047,6 +1089,7 @@ def open_settings(self):
     txt_buffer_back = Text(frame_buffer_back, wrap='none', width=4, height=1)
     txt_buffer_back.pack(side='right', padx=30)
     txt_buffer_back.insert("1.0", str(self.buffer_back_max_size))
+    txt_buffer_back.bind("<Return>",  partial(ok_button_pressed, Settings_window))
 
     # OK button
     ok_button = ttk.Button(Settings_window, text='OK', command=partial(ok_button_pressed, Settings_window))

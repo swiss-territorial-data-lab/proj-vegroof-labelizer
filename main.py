@@ -12,7 +12,7 @@ from functools import partial
 import threading
 from src.menu_utils import *
 from src.image_utils import show_image, zoom, drag_image, start_drag, update_image
-
+from src.menu_utils import set_all_states, thread_restart_buffer
 
 class ImageViewer:
     def __init__(self, root):
@@ -46,7 +46,7 @@ class ImageViewer:
 
         self.zooming_max = 1.5
         self.drag_prop_to_zoom = True
-        self.margin_around_image = 50
+        self.margin_around_image = 0
       
 
         #   _input variables
@@ -75,34 +75,34 @@ class ImageViewer:
         root.title('GeoLabelizer')
         
         # Create the menu
-        menu_bar = Menu(root)
+        self.menu_bar = Menu(root)
         
         #   _add loading menu
-        load_menu = Menu(menu_bar, tearoff=0)
+        load_menu = Menu(self.menu_bar, tearoff=0)
         load_menu.add_command(label='Polygons', command=partial(load, self, 1))
         load_menu.add_command(label='Rasters', command=partial(load, self, 2))
         load_menu.add_command(label='Polygons & Rasters', command=partial(load, self, 0))
         load_menu.add_command(label='From save', command=partial(load, self, 3))
-        menu_bar.add_cascade(label='Load', menu=load_menu)
+        self.menu_bar.add_cascade(label='Load', menu=load_menu)
 
         #   _add selection of categories and metadata to show
-        select_menu = Menu(menu_bar, tearoff=0)
+        select_menu = Menu(self.menu_bar, tearoff=0)
         select_menu.add_command(label="categories to show", command=partial(open_list_cat, self))
         select_menu.add_command(label="metadata to show", command=partial(open_list_meta, self))
-        menu_bar.add_cascade(label='Select', menu=select_menu)
+        self.menu_bar.add_cascade(label='Select', menu=select_menu)
 
         #   _add ordering
-        menu_bar.add_command(label="Order", command=partial(order, self))
+        self.menu_bar.add_command(label="Order", command=partial(order, self))
 
         #   _add settings
-        menu_bar.add_command(label='Settings', command=partial(open_settings, self))
+        self.menu_bar.add_command(label='Settings', command=partial(open_settings, self))
 
         #   _add save and exit options
-        menu_bar.add_command(label='Save', command=partial(save, self))
-        menu_bar.add_command(label='Exit', command=partial(exit, self))
+        self.menu_bar.add_command(label='Save', command=partial(save, self))
+        self.menu_bar.add_command(label='Exit', command=partial(exit, self))
 
         # _ attach the menu bar to the root window
-        root.config(menu=menu_bar)
+        root.config(menu=self.menu_bar)
 
         # Set the infos about loaded rasters and polygons
         text_infos = '\n'.join([item[0] + ': ' + str(item[1]) for item in self.infos_files.items()])
@@ -409,9 +409,6 @@ class ImageViewer:
         if self.sample_pos == self.num_dataset_to_show - 1:
             messagebox.showinfo("informaton", "Last sample reached !")
 
-        # loop every 100ms
-        # self.root.after(100, self.update_infos)
-
     def attribute_button_command(self, button: ttk.Button, val):
         def change_category(self, cat):
             self.new_dataset.loc[self.sample_index, self.interest_col] = cat
@@ -439,7 +436,13 @@ class ImageViewer:
         self.buffer.current_file_path = ""
         self.original_image = None
         self.display_image = None
+        set_all_states(self.root, 'disabled', self.menu_bar)
 
+        # Restart buffer
+        self.buffer_infos_lbl.config(text="Restarting buffer...")
+        self.loading_running = True
+        threading.Thread(target=thread_restart_buffer, args=[self,]).start()
+        # thread_restart_buffer(self, mode='reset')
 
         # # Synchronization event to signal when the thread is done
         # thread_done = threading.Event()
@@ -461,13 +464,13 @@ class ImageViewer:
         # while not thread_done.is_set():
         #     sleep(0.1)
 
-        try:
-            self.buffer.reset()
-        except Exception as e:
-            print("an error occured while reseting buffer: ", e)
-        finally:
-            show_image(self)
-            self.update_infos()
+        # try:
+        #     self.buffer.reset()
+        # except Exception as e:
+        #     print("an error occured while reseting buffer: ", e)
+        # finally:
+        #     show_image(self)
+        #     self.update_infos()
         
         
 def main():

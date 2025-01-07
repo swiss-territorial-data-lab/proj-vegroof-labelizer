@@ -19,6 +19,7 @@ import shutil
 from collections import deque
 from multiprocessing import Manager
 import threading
+import traceback
 
 
 def clip_and_store(pause_event, polygons, margin_around_image, list_rasters_src, buffer_tasks, buffer_results, buffer_size, buffer_max_size, img_size, temp_dir, buffer_type):
@@ -120,8 +121,11 @@ def clip_and_store(pause_event, polygons, margin_around_image, list_rasters_src,
                     #     img_arr = np.moveaxis(img_arr, 2, 0)
 
                     # Plot the raster and overlay the original polygon
-                    fig, ax = plt.subplots(figsize=(10, 10))
+                    img_width = img_arr.shape[1]
+                    img_height = img_arr.shape[2]
+                    fig, ax = plt.subplots(figsize=(img_width/100, img_height/100), dpi=100)
 
+                    # ax.set_position([0, 0, 1, 1])  # [left, bottom, width, height]
                     #   _display the clipped raster
                     show(img_arr, transform=out_transform, ax=ax, cmap="viridis")
 
@@ -134,6 +138,8 @@ def clip_and_store(pause_event, polygons, margin_around_image, list_rasters_src,
                     for coords in coords_to_show:
                         x, y = zip(*coords)
                         ax.plot(x, y, color="yellow", linewidth=2, label="Original Polygon")
+
+                    # Remove axes and adjust layout to eliminate borders
                     plt.axis('off')
                     plt.subplots_adjust(left=0, right=1, top=1, bottom=0)
 
@@ -141,34 +147,37 @@ def clip_and_store(pause_event, polygons, margin_around_image, list_rasters_src,
                     canvas = FigureCanvas(fig)
                     canvas.draw()
                     img_arr = np.frombuffer(canvas.tostring_rgb(), dtype='uint8')
-
                     img_arr = img_arr.reshape(canvas.get_width_height()[::-1] + (3,))
+                    # img_arr = np.moveaxis(img_arr, 0, 2)
                     plt.close()
 
                     # transform if image is in 16bits:
                     if img_arr.dtype == 'uint16':
                         img_arr = (img_arr/np.max(img_arr) * 255).astype('uint8')
 
-                    # show results
+                    # Show results
                     image = Image.fromarray(img_arr)
-
+                    # image_resized = img_arr
                     #   _resize image
                     max_size = np.max(img_arr.shape[:2])
                     ratio = img_size / max_size
                     new_size = np.flip((np.array(img_arr.shape[0:2]) * ratio).astype(int))
-                    image_resized = np.array(image.resize(new_size))  # Resize for display
+                    # image_resized = np.array(image.resize(new_size))  # Resize for display
+
+                    image_resized = np.array(image)
 
                     #   _add padding
                     min_axis = np.argmin(image_resized.shape[:2])
                     min_size = np.min(image_resized.shape[:2])
-                    padding_size = int((img_size - min_size)/2)
+                    max_size = np.max(image_resized.shape[:2])
+                    padding_size = int((max_size - min_size)/2)
                     padding = [(padding_size, padding_size), (0, 0), (0, 0)] if min_axis == 0 else [(0, 0), (padding_size, padding_size), (0, 0)]
-                    padded_image = np.pad(image_resized,padding, mode='constant')
+                    padded_image = np.pad(image_resized,padding, mode='constant', constant_values=255)
                     
-                    # control sizes
+                    # Control sizes
                     for ax in range(2):
-                        while padded_image.shape[ax] < img_size:
-                            additional_padding = np.zeros((1,padded_image.shape[1],3)) if ax == 0 else np.zeros((padded_image.shape[0], 1,3))
+                        while padded_image.shape[ax] < max_size:
+                            additional_padding = np.ones((1,padded_image.shape[1],3)) if ax == 0 else np.ones((padded_image.shape[0], 1,3))
                             padded_image = np.concatenate((padded_image, additional_padding), axis=ax)
 
                     # Save image in tmp file
@@ -193,6 +202,8 @@ def clip_and_store(pause_event, polygons, margin_around_image, list_rasters_src,
             except Exception as e:
                 # buffer_results.append((sample_pos, f"ERROR: {str(e)}",0,0))
                 print("Error during clipping: ", e)
+                for frame in traceback.extract_tb(e.__traceback__):
+                    print(f"File: {frame.filename}, Line: {frame.lineno}, Function: {frame.name}")
                 buffer_size.value += 1
             finally:
                 pass
@@ -205,7 +216,6 @@ class Buffer():
 
         # Initialise variables
         #   _rasters and polygons info
-        # self.polygons_src = polygons_src
         self.rasters_src = rasters_src
         self.list_rasters_src = []
         for r, _, f in os.walk(self.rasters_src):
@@ -260,7 +270,6 @@ class Buffer():
             pos = (self.current_pos - i)  % len(self.polygons)  # Loop around
             self.task_back_list.append(pos)
 
-        print(self.buffer_back_max_size)
         # Start the buffer processes
         self.buffer_front_process = multiprocessing.Process(
             target=clip_and_store, 
@@ -455,7 +464,6 @@ class Buffer():
             self.buffer_back_size.value = 0
 
             #   _max size
-            print(back_max_size)
             self.buffer_front_max_size = front_max_size
             self.buffer_back_max_size = back_max_size
 

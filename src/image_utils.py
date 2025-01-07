@@ -32,8 +32,8 @@ def show_image(self):
     try:
         # When no matching raster
         if len(self.list_rasters_src) == 0 or len(self.dataset_to_show) == 0 or (self.buffer and self.buffer.current_file_path == 'no-sample'):
-            self.original_image = Image.open("./src/no_image.png").resize((self.img_width, self.img_height))
-            self.display_image = self.original_image.copy()
+            self.original_image = Image.open("./src/no_image.png")#.resize((self.img_width, self.img_height))
+            self.display_image = self.original_image.resize((self.img_width, self.img_height))
             self.photo = ImageTk.PhotoImage(self.display_image)
             self.image_id = self.image.create_image(0, 0, anchor=tk.NW, image=self.photo)
             self.title.config(text="No sample to display")
@@ -41,17 +41,18 @@ def show_image(self):
 
         # Show image and title
         self.original_image = Image.open(self.buffer.current_file_path)
-        self.display_image = self.original_image.copy()
+        self.original_size = self.original_image.size
+        self.display_image = self.original_image.resize((self.img_width, self.img_height))
         self.photo = ImageTk.PhotoImage(self.display_image)
         self.image_id = self.image.create_image(0, 0, anchor=tk.NW, image=self.photo)
         # cat = self.dataset_to_show.iloc[self.sample_pos][self.frac_col]
         # self.title.config(text=f"sample {self.sample_index} - {self.frac_col_val_to_lbl[str(cat)]}")
 
-        # apply initial zoom
+        # Apply initial zoom
         a = (max(self.buffer.current_deltax, self.buffer.current_deltay) + 2 * self.margin_around_image)
         b = max(self.buffer.current_deltax, self.buffer.current_deltay)
-        self.initial_zoom = b and a / b or 0
-        self.current_zoom = self.initial_zoom / 1.1
+        self.initial_zoom = b and a / b or 0    # fancy way to do a/b and avoid divisions by 0
+        self.current_zoom = max(1.0, self.initial_zoom / 1.1)
         self.offset_x = 0.5
         self.offset_y = 0.5
         self.update_image()
@@ -168,14 +169,20 @@ def update_image(self):
     crop_width = int(self.img_width / self.current_zoom)
     crop_height = int(self.img_height / self.current_zoom)
 
+    ratio = self.original_size[0] / self.img_width
     # Calculate the crop box
-    center_x = int(self.offset_x * self.img_width)
-    center_y = int(self.offset_y * self.img_height)
+    center_x = self.offset_x * self.img_width
+    center_y = self.offset_y * self.img_height
     left = max(center_x - crop_width // 2, 0)
     top = max(center_y - crop_height // 2, 0)
     right = min(left + crop_width, self.img_width)
     bottom = min(top + crop_height, self.img_height)
-
+    center_x = int(center_x * ratio)
+    center_y = int(center_y * ratio)
+    left = int(left * ratio)
+    top = int(top * ratio)
+    right = int(right * ratio)
+    bottom = int(bottom * ratio)
     # Crop and resize the image
     cropped_image = self.original_image.crop((left, top, right, bottom))
     resized_image = cropped_image.resize((self.img_width, self.img_height), Image.LANCZOS)
