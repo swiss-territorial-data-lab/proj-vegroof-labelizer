@@ -576,12 +576,14 @@ def load(self, mode=0):
             threading.Thread(target=start_buffer).start()
         finally:
             self.update_infos()
+            self.do_autosave = True
+            self.auto_save()
 
     elif self.polygon_path != "" or self.raster_path != "":
         self.update_infos()
     
 
-def save(self):
+def save(self, verbose=True):
     # if self.UnsavedChanges == 0:
     #     _ = messagebox.showinfo("Information", "No changes has been detected.")
     #     return
@@ -646,7 +648,8 @@ def save(self):
     except AttributeError:
         _ = messagebox.showerror("Error", "A problem happened! Either the path to the polygon has not been set or is non-existant.")
     else:
-        _ = messagebox.showinfo("Information", f"The changes have been saved in folder :\n{new_polygon_path}")
+        if verbose:
+            _ = messagebox.showinfo("Information", f"The changes have been saved in folder :\n{new_polygon_path}")
         self.UnsavedChanges = False
 
         # compute visualization of data analysis
@@ -1101,11 +1104,6 @@ def remove_sample(self):
     if len(self.new_dataset) == 0 or self.polygon_path == None:
         messagebox.showwarning("Information", "No polygon file loaded!")
         return
-    
-    # Confirmation
-    # if not messagebox.askyesno("Confirmation", "You are about to remove this sample. Are you sure?"):
-    #     return
-
 
     # Remove sample
     self.dataset_to_show = self.dataset_to_show.drop(self.sample_index, axis=0)

@@ -12,7 +12,7 @@ from functools import partial
 import threading
 from src.menu_utils import *
 from src.image_utils import show_image, zoom, drag_image, start_drag, update_image
-from src.menu_utils import set_all_states, thread_restart_buffer
+# from src.menu_utils import set_all_states, thread_restart_buffer
 
 class ImageViewer:
     def __init__(self, root):
@@ -38,6 +38,8 @@ class ImageViewer:
             'Rasters loc': '-',
             'sample shown': '0/0',
         }
+
+        self.do_autosave = False
 
         #   _ordering variables and metadata
         self.order_var = ""
@@ -249,6 +251,12 @@ class ImageViewer:
         threading.Thread(target=self.auto_process).start()
         # self.running = True
         # self.animate_loading_icon()
+
+    def auto_save(self):
+        if self.do_autosave:
+            save(self, verbose=False)
+            print("SAVED!")
+            self.root.after(1000 * 10, self.auto_save)
 
     def auto_process(self):
         # infos about buffers

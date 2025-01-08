@@ -205,9 +205,7 @@ def clip_and_store(pause_event, polygons, margin_around_image, list_rasters_src,
                 for frame in traceback.extract_tb(e.__traceback__):
                     print(f"File: {frame.filename}, Line: {frame.lineno}, Function: {frame.name}")
                 buffer_size.value += 1
-            finally:
-                pass
-        print('done!')
+        print('Buffer terminated!')
         buffer_results.append('DONE')
 
 
@@ -473,108 +471,7 @@ class Buffer():
             # Restart buffer
             self.start()
 
-    def test(self):
-
-        # Setup
-        for r, _, f in os.walk(self.rasters_src):
-            for file in f:
-                if file.endswith('.tif'):
-                    file_src = r + '/' + file
-                    file_src = file_src.replace('\\','/')
-                    self.list_rasters_src.append(file_src)
-
-        # Create a temporary folder for the buffer
-        temp_dir = tempfile.mkdtemp()
-
-        # Create queues for task communication
-        task_queue = multiprocessing.Queue(maxsize=self.buffer_max_size)
-        result_queue = multiprocessing.Queue(maxsize=self.buffer_max_size)
-
-        # Shared buffer size counter
-        buffer_size = multiprocessing.Value("i", 0)  # Integer shared variable
-        # sample_pos = multiprocessing.Value("i", 0)  # Integer shared variable
-
-        self.start(task_queue, result_queue, temp_dir, buffer_size)
-
-        print("STARTED")
-
-        while True:
-            print("one more!")
-            result = result_queue.get()
-            self.sample_pos += 1
-            with buffer_size.get_lock():
-                buffer_size.value -= 1
-            task_queue.put(self.sample_pos)
-            print("buffer_size : ", buffer_size.value)
-            print("\ttask queue size: ", task_queue.qsize())
-            print("\tresult queue size: ", result_queue.qsize())
-            print("\tsample pos : ", self.sample_pos)
-            print('---')
-            print()
-            sleep(5)
-
-        # # Setup
-        # raster_files = []
-        # for r, d, f in os.walk(self.rasters_src):
-        #     for file in f:
-        #         if file.endswith('.tif'):
-        #             file_src = r + '/' + file
-        #             file_src = file_src.replace('\\','/')
-        #             self.list_rasters_src.append(file_src)
-        # # raster_files = ["path_to_raster1.tif", "path_to_raster2.tif"]  # Example raster files
-        # clip_coords = (10, 10, 100, 100)  # Define your bounding box
-        # buffer_size = 10  # Buffer size for clipping
-
-        # # Create a temporary folder for the buffer
-        # temp_dir = tempfile.mkdtemp()
-
-        # # Create queues for task communication
-        # task_queue = multiprocessing.Queue(maxsize=buffer_size)
-        # result_queue = multiprocessing.Queue(maxsize=buffer_size)
-
-        # # Start the buffer process
-        # buffer_process = multiprocessing.Process(target=self.clip_and_store, args=(task_queue, result_queue, temp_dir))
-        # buffer_process.start()
-
-        # # Send tasks to the buffer process
-        # for sample_pos in self.polygons.index:
-        #     if task_queue.qsize() >= self.buffer_max_size:
-        #         break
-        #     task_queue.put(sample_pos)
-        # # for raster_path in raster_files:
-        # #     task_queue.put((raster_path, clip_coords, buffer_size))
-
-        # # Retrieve results
-        # while True:
-        #     result = result_queue.get()
-        #     if result == 'DONE':
-        #         print("DONE!")
-        #         break
-        #     sample_pos, temp_file_path = result
-        #     if "ERROR" in temp_file_path:
-        #         print(f"Error processing {sample_pos}: {temp_file_path}")
-        #     else:
-        #         print(f"Clipped image stored at: {temp_file_path}")
-        
-        # # while True:
-        # #     result_queue.
-        # #     sleep(0.5)
-        # # for _ in self.list_rasters:
-        # #     raster_path, temp_file_path = result_queue.get()
-        # #     if "ERROR" in temp_file_path:
-        # #         print(f"Error processing {raster_path}: {temp_file_path}")
-        # #     else:
-        # #         print(f"Clipped image stored at: {temp_file_path}")
-
-        # # Clean up
-        # task_queue.put("STOP")
-        # buffer_process.join()
-
-        # # Optionally delete the temp directory after use
-        # import shutil
-        # shutil.rmtree(temp_dir)
-
-
+   
 class Sample():
     def __init__(self):
         pass
