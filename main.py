@@ -129,7 +129,7 @@ class ImageViewer:
         style.map('Special.TButton',  background=[("active", "#c90000")])
 
         # Add remove-sample button
-        self.removeSample_button = ttk.Button(root, text="Remove sample", style='Special.TButton', command=partial(remove_sample, self))
+        self.removeSample_button = ttk.Button(root, text="Remove sample", style='Special.TButton', command=self.remove_sample)
         self.removeSample_button.place(x=620, y=30, width=150)
 
         # Set the title
