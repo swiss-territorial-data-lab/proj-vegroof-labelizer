@@ -1,7 +1,8 @@
 import os
-import glob
+import shutil
+import numpy as np
+from time import sleep
 import tempfile
-import multiprocessing
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
 import rasterio
@@ -9,208 +10,213 @@ from rasterio.mask import mask
 from rasterio.plot import show
 from rasterio.merge import merge
 from PIL import Image
-from shapely.geometry import Polygon, MultiPolygon
-import geopandas as gpd
-import numpy as np
-from time import sleep
-import tkinter as tk
-from tkinter import ttk
-import shutil
-from collections import deque
+from shapely.geometry import Polygon
+import multiprocessing
 from multiprocessing import Manager
-import threading
 import traceback
 
 
 def clip_and_store(pause_event, polygons, margin_around_image, list_rasters_src, buffer_tasks, buffer_results, buffer_size, buffer_max_size, img_size, temp_dir, buffer_type):
-        """
-        Worker process to clip rasters and store them in a temp folder.
-        """
-        while True:
-            try:
-                if len(buffer_tasks) > 0:
-                    task = buffer_tasks[0]
-                    if task == "STOP":
-                        break
+    """
+    Clips polygons from raster images, processes the results, and stores them in a shared buffer.
 
-                    sample_pos = task
-                    sample = polygons.iloc[sample_pos]
-                    geometry = sample.geometry
-                    # Define bounding box
-                    exterior_coords = []
+    For each polygon, the function calculates a bounding box, adjusts it to a square, and clips the relevant raster(s). 
+    It processes the clipped raster (e.g., resizing, padding, normalizing) and saves it to a temporary file. Results 
+    are appended to a shared buffer, including metadata such as file path and dimensions. Handles errors, buffer size 
+    limits, and synchronization in a multiprocessing environment.
 
-                    #   _find coords of (sub-)polygons
-                    if geometry.geom_type == "Polygon":
-                        exterior_coords.extend(geometry.exterior.coords)
-                    elif geometry.geom_type == "MultiPolygon":
-                        for polygon in geometry.geoms:
-                            exterior_coords.extend(polygon.exterior.coords)
-                            
-                    #   _find most-south/east/north/west points
-                    minx = min([coord[0] for coord in exterior_coords])
-                    maxx = max([coord[0] for coord in exterior_coords])
-                    miny = min([coord[1] for coord in exterior_coords])
-                    maxy = max([coord[1] for coord in exterior_coords])
-                    deltax = maxx - minx
-                    deltay = maxy - miny
+    Parameters:
+        pause_event (multiprocessing.Event): Event to pause or resume processing.
+        polygons (geopandas.GeoDataFrame): GeoDataFrame containing polygon geometries.
+        margin_around_image (float): Margin to add around the polygons when defining bounding boxes.
+        list_rasters_src (list of str): File paths to raster datasets to process.
+        buffer_tasks (multiprocessing.Manager().list): Shared list of tasks (polygon indices) to process.
+        buffer_results (multiprocessing.Manager().list): Shared list for storing results and status.
+        buffer_size (multiprocessing.Value): Shared counter for the buffer's current size.
+        buffer_max_size (int): Maximum size of the buffer before pausing new additions.
+        img_size (tuple of int): Desired dimensions (width, height) for processed images.
+        temp_dir (str): Path to a directory for saving temporary output files.
+        buffer_type (str): Label indicating the type of buffer (e.g., "train", "validation").
 
-                    new_minx = minx - margin_around_image
-                    new_maxx = maxx + margin_around_image
-                    new_miny = miny - margin_around_image
-                    new_maxy = maxy + margin_around_image
+    Returns:
+        None: Results are appended to the shared `buffer_results` list.
+    """
+    while True:
+        try:
+            if len(buffer_tasks) > 0:
+                task = buffer_tasks[0]
+                if task == "STOP":
+                    break
 
-                    #   _correct to have a square bounding box
-                    diff = abs(deltax - deltay)
-                    if deltax > deltay:
-                        new_miny -= diff // 2
-                        new_maxy += diff // 2
-                    else:
-                        new_minx -= diff // 2
-                        new_maxx += diff // 2
+                sample_pos = task
+                sample = polygons.iloc[sample_pos]
+                geometry = sample.geometry
+                # Define bounding box
+                exterior_coords = []
 
-                    geom_large = Polygon([
-                        (new_minx, new_miny),  # South-west
-                        (new_maxx, new_miny),  # Bottom-right
-                        (new_maxx, new_maxy),  # Top-right
-                        (new_minx, new_maxy),  # Top-left
-                        (new_minx, new_miny),  # Close the polygon
-                        ])
-                    matching_rasters = []
-                    matching_images = []
-                    out_transform = {}
-                    for raster_src in list_rasters_src:
-                        raster = rasterio.open(raster_src)
-                        try:
-                            img_arr, out_transform = mask(raster, [geom_large], crop=True)
-                        except ValueError:
-                            continue
-                        else:
-                            matching_rasters.append(raster)
-                            matching_images.append(img_arr)
-                    
-                    # Test if polygon match with one or multiple rasters:    
-                    if len(matching_rasters) == 0:
-                        # raise ValueError("Polygon did not match any raster!")
-                        buffer_results.append((sample_pos, "no-sample", 0, 0))
-                        buffer_size.value += 1
-                        print(f"New sample in buffer {buffer_type}: {sample_pos} - no-sample")
-                        del buffer_tasks[0]
-                        continue
-                    elif len(matching_rasters) == 1:
-                        img_arr = matching_images[0]
-                    else:
-                        img_arr, out_transform = merge(
-                        sources=matching_rasters, 
-                        nodata=0, 
-                        bounds=geom_large.bounds,
-                        resampling=rasterio.enums.Resampling.nearest
-                        )
+                #   _find coords of (sub-)polygons
+                if geometry.geom_type == "Polygon":
+                    exterior_coords.extend(geometry.exterior.coords)
+                elif geometry.geom_type == "MultiPolygon":
+                    for polygon in geometry.geoms:
+                        exterior_coords.extend(polygon.exterior.coords)
+                        
+                #   _find most-south/east/north/west points
+                minx = min([coord[0] for coord in exterior_coords])
+                maxx = max([coord[0] for coord in exterior_coords])
+                miny = min([coord[1] for coord in exterior_coords])
+                maxy = max([coord[1] for coord in exterior_coords])
+                deltax = maxx - minx
+                deltay = maxy - miny
 
-                    if img_arr.shape[0] == 4:
-                        img_arr = img_arr[1:4, ...]
-                    if len(img_arr.shape) != 3:
-                        raise ValueError("Too many dimensions in the image!")
-                    for pos, dim in enumerate(img_arr.shape):
-                        if dim == 3:
-                            img_arr = np.moveaxis(img_arr, pos, 0)
-                            break
-                        elif pos == 2:
-                            raise ValueError("Too many bands in the image!")
-                    # else:
-                    #     print(img_arr.shape)
-                    #     img_arr = np.moveaxis(img_arr, 2, 0)
+                new_minx = minx - margin_around_image
+                new_maxx = maxx + margin_around_image
+                new_miny = miny - margin_around_image
+                new_maxy = maxy + margin_around_image
 
-                    # Plot the raster and overlay the original polygon
-                    img_width = img_arr.shape[1]
-                    img_height = img_arr.shape[2]
-                    fig, ax = plt.subplots(figsize=(img_width/100, img_height/100), dpi=100)
-
-                    # ax.set_position([0, 0, 1, 1])  # [left, bottom, width, height]
-                    #   _display the clipped raster
-                    show(img_arr, transform=out_transform, ax=ax, cmap="viridis")
-
-                    coords_to_show = []
-                    if geometry.geom_type == "Polygon":
-                        coords_to_show = [geometry.exterior.coords]
-                    elif geometry.geom_type == "MultiPolygon":
-                        for polygon in geometry.geoms:
-                            coords_to_show = [polygon.exterior.coords for polygon in geometry.geoms]
-                    for coords in coords_to_show:
-                        x, y = zip(*coords)
-                        ax.plot(x, y, color="yellow", linewidth=2, label="Original Polygon")
-
-                    # Remove axes and adjust layout to eliminate borders
-                    plt.axis('off')
-                    plt.subplots_adjust(left=0, right=1, top=1, bottom=0)
-
-                    #   _render the figure as a NumPy array
-                    canvas = FigureCanvas(fig)
-                    canvas.draw()
-                    img_arr = np.frombuffer(canvas.tostring_rgb(), dtype='uint8')
-                    img_arr = img_arr.reshape(canvas.get_width_height()[::-1] + (3,))
-                    # img_arr = np.moveaxis(img_arr, 0, 2)
-                    plt.close()
-
-                    # transform if image is in 16bits:
-                    if img_arr.dtype == 'uint16':
-                        img_arr = (img_arr/np.max(img_arr) * 255).astype('uint8')
-
-                    # Show results
-                    image = Image.fromarray(img_arr)
-                    # image_resized = img_arr
-                    #   _resize image
-                    max_size = np.max(img_arr.shape[:2])
-                    ratio = img_size / max_size
-                    new_size = np.flip((np.array(img_arr.shape[0:2]) * ratio).astype(int))
-                    # image_resized = np.array(image.resize(new_size))  # Resize for display
-
-                    image_resized = np.array(image)
-
-                    #   _add padding
-                    min_axis = np.argmin(image_resized.shape[:2])
-                    min_size = np.min(image_resized.shape[:2])
-                    max_size = np.max(image_resized.shape[:2])
-                    padding_size = int((max_size - min_size)/2)
-                    padding = [(padding_size, padding_size), (0, 0), (0, 0)] if min_axis == 0 else [(0, 0), (padding_size, padding_size), (0, 0)]
-                    padded_image = np.pad(image_resized,padding, mode='constant', constant_values=255)
-                    
-                    # Control sizes
-                    for ax in range(2):
-                        while padded_image.shape[ax] < max_size:
-                            additional_padding = np.ones((1,padded_image.shape[1],3)) if ax == 0 else np.ones((padded_image.shape[0], 1,3))
-                            padded_image = np.concatenate((padded_image, additional_padding), axis=ax)
-
-                    # Save image in tmp file
-                    img = Image.fromarray(np.uint8(padded_image))
-                    temp_file_path = os.path.join(temp_dir, f"sample_{sample_pos}.png")
-                    img.save(temp_file_path)
-
-                    # Notify main process of the result
-                    buffer_results.append((sample_pos, temp_file_path, deltax, deltay))
-                    buffer_size.value += 1
-                    print(f"New sample in buffer {buffer_type}: {sample_pos} - {temp_file_path}")
-                    del buffer_tasks[0]
+                #   _correct to have a square bounding box
+                diff = abs(deltax - deltay)
+                if deltax > deltay:
+                    new_miny -= diff // 2
+                    new_maxy += diff // 2
                 else:
-                    if buffer_size.value > buffer_max_size:
-                        if buffer_results[-1][1] != 'no-sample':
-                            os.remove(buffer_results[-1][1])
-                        del buffer_results[-1]
-                        buffer_size.value -= 1
-                    while buffer_size.value == buffer_max_size or pause_event.is_set():
-                        sleep(0.1)
+                    new_minx -= diff // 2
+                    new_maxx += diff // 2
 
-            except Exception as e:
-                # buffer_results.append((sample_pos, f"ERROR: {str(e)}",0,0))
-                print("Error during clipping: ", e)
-                for frame in traceback.extract_tb(e.__traceback__):
-                    print(f"File: {frame.filename}, Line: {frame.lineno}, Function: {frame.name}")
+                geom_large = Polygon([
+                    (new_minx, new_miny),  # South-west
+                    (new_maxx, new_miny),  # Bottom-right
+                    (new_maxx, new_maxy),  # Top-right
+                    (new_minx, new_maxy),  # Top-left
+                    (new_minx, new_miny),  # Close the polygon
+                    ])
+                matching_rasters = []
+                matching_images = []
+                out_transform = {}
+                for raster_src in list_rasters_src:
+                    raster = rasterio.open(raster_src)
+                    try:
+                        img_arr, out_transform = mask(raster, [geom_large], crop=True)
+                    except ValueError:
+                        continue
+                    else:
+                        matching_rasters.append(raster)
+                        matching_images.append(img_arr)
+                
+                # Test if polygon match with one or multiple rasters:    
+                if len(matching_rasters) == 0:
+                    # raise ValueError("Polygon did not match any raster!")
+                    buffer_results.append((sample_pos, "no-sample", 0, 0))
+                    buffer_size.value += 1
+                    print(f"New sample in buffer {buffer_type}: {sample_pos} - no-sample")
+                    del buffer_tasks[0]
+                    continue
+                elif len(matching_rasters) == 1:
+                    img_arr = matching_images[0]
+                else:
+                    img_arr, out_transform = merge(
+                    sources=matching_rasters, 
+                    nodata=0, 
+                    bounds=geom_large.bounds,
+                    resampling=rasterio.enums.Resampling.nearest
+                    )
+
+                if img_arr.shape[0] == 4:
+                    img_arr = img_arr[1:4, ...]
+                if len(img_arr.shape) != 3:
+                    raise ValueError("Too many dimensions in the image!")
+                for pos, dim in enumerate(img_arr.shape):
+                    if dim == 3:
+                        img_arr = np.moveaxis(img_arr, pos, 0)
+                        break
+                    elif pos == 2:
+                        raise ValueError("Too many bands in the image!")
+
+                # Plot the raster and overlay the original polygon
+                img_width = img_arr.shape[1]
+                img_height = img_arr.shape[2]
+                fig, ax = plt.subplots(figsize=(img_width/100, img_height/100), dpi=100)
+
+                #   _display the clipped raster
+                show(img_arr, transform=out_transform, ax=ax, cmap="viridis")
+
+                coords_to_show = []
+                if geometry.geom_type == "Polygon":
+                    coords_to_show = [geometry.exterior.coords]
+                elif geometry.geom_type == "MultiPolygon":
+                    for polygon in geometry.geoms:
+                        coords_to_show = [polygon.exterior.coords for polygon in geometry.geoms]
+                for coords in coords_to_show:
+                    x, y = zip(*coords)
+                    ax.plot(x, y, color="yellow", linewidth=2, label="Original Polygon")
+
+                # Remove axes and adjust layout to eliminate borders
+                plt.axis('off')
+                plt.subplots_adjust(left=0, right=1, top=1, bottom=0)
+
+                #   _render the figure as a NumPy array
+                canvas = FigureCanvas(fig)
+                canvas.draw()
+                img_arr = np.frombuffer(canvas.tostring_rgb(), dtype='uint8')
+                img_arr = img_arr.reshape(canvas.get_width_height()[::-1] + (3,))
+                plt.close()
+
+                # transform if image is in 16bits:
+                if img_arr.dtype == 'uint16':
+                    img_arr = (img_arr/np.max(img_arr) * 255).astype('uint8')
+
+                # Show results
+                #   _add padding
+                min_axis = np.argmin(img_arr.shape[:2])
+                min_size = np.min(img_arr.shape[:2])
+                max_size = np.max(img_arr.shape[:2])
+                padding_size = int((max_size - min_size)/2)
+                padding = [(padding_size, padding_size), (0, 0), (0, 0)] if min_axis == 0 else [(0, 0), (padding_size, padding_size), (0, 0)]
+                padded_image = np.pad(img_arr,padding, mode='constant', constant_values=255)
+                
+                #   _control sizes
+                for ax in range(2):
+                    while padded_image.shape[ax] < max_size:
+                        additional_padding = np.ones((1,padded_image.shape[1],3)) if ax == 0 else np.ones((padded_image.shape[0], 1,3))
+                        padded_image = np.concatenate((padded_image, additional_padding), axis=ax)
+
+                # Save image in tmp file
+                img = Image.fromarray(np.uint8(padded_image))
+                temp_file_path = os.path.join(temp_dir, f"sample_{sample_pos}.png")
+                img.save(temp_file_path)
+
+                # Notify main process of the result
+                buffer_results.append((sample_pos, temp_file_path, deltax, deltay))
                 buffer_size.value += 1
-        print('Buffer terminated!')
-        buffer_results.append('DONE')
+                # print(f"New sample in buffer {buffer_type}: {sample_pos} - {temp_file_path}")
+                del buffer_tasks[0]
+            else:
+                if buffer_size.value > buffer_max_size:
+                    if buffer_results[-1][1] != 'no-sample':
+                        os.remove(buffer_results[-1][1])
+                    del buffer_results[-1]
+                    buffer_size.value -= 1
+                while buffer_size.value == buffer_max_size or pause_event.is_set():
+                    sleep(0.1)
+
+        except Exception as e:
+            buffer_results.append((sample_pos, f"ERROR: {str(e)}",0,0))
+            print("Error during clipping: ", e)
+            for frame in traceback.extract_tb(e.__traceback__):
+                print(f"File: {frame.filename}, Line: {frame.lineno}, Function: {frame.name}")
+            buffer_size.value += 1
+    print('Buffer terminated!')
+    buffer_results.append('DONE')
 
 
 class Buffer():
+    """
+    Manages a multiprocessing buffer system for efficiently processing polygon samples with raster data. 
+    Handles tasks such as advancing, resetting, and reloading buffers, while maintaining a temporary storage mechanism.
+    """
+
     def __init__(self, rasters_src, polygons, margin_around_image, buffer_front_max_size, buffer_back_max_size):
+        """Manages a buffer system for processing polygon samples with raster images in a multiprocessing environment."""
 
         # Initialise variables
         #   _rasters and polygons info
@@ -260,6 +266,8 @@ class Buffer():
         self.pause_event_back = multiprocessing.Event()
 
     def start(self):
+        """Starts the buffer processes and initializes task/result communication lists."""
+    
         # Fill the lists for task communication
         for i in range(self.buffer_front_max_size):
             pos = (self.current_pos + i)  % len(self.polygons)  # Loop around
@@ -308,6 +316,8 @@ class Buffer():
         self.current_pos, self.current_file_path, self.current_deltax, self.current_deltay = self.result_front_list[0]
 
     def move_forward(self):
+        """Advances the buffer to the next sample, updating current position and handling buffers."""
+    
         # Change buffers
         error_occured = False
         try:
@@ -336,6 +346,8 @@ class Buffer():
                 self.reset()
 
     def move_backward(self):
+        """Moves the buffer to the previous sample, updating current position and handling buffers."""
+    
         # change buffers
         error_occured = False
         try:
@@ -364,6 +376,9 @@ class Buffer():
                 self.reset()
 
     def delete_sample(self):
+        """Deletes the current sample from the front buffer and advances to the next sample."""
+    
+        error_occured = False
         try:
             _, old_path, _, _ = self.result_front_list.pop(0)  
             self.current_pos, self.current_file_path, _, _ = self.result_front_list[0]
@@ -384,6 +399,8 @@ class Buffer():
                 self.reset()
 
     def reset(self):
+        """Resets the buffer processes, clearing all tasks and results, and reloads the initial state."""
+    
         # Pauses processes
         self.pause_event_front.set()
         self.pause_event_back.set()
@@ -432,6 +449,8 @@ class Buffer():
         print("Restarted")
 
     def purge(self):
+        """Terminates buffer processes and removes temporary directories."""
+    
         # Clean up
         self.buffer_front_process.terminate()
         self.buffer_front_process.join()
@@ -443,6 +462,15 @@ class Buffer():
         shutil.rmtree(self.temp_back_dir)
 
     def restart(self, front_max_size, back_max_size, margin_around_image):
+        """
+        Restarts the buffer with new parameters, clearing previous state and tasks.
+        
+        Parameters:
+            front_max_size (int): The maximum size of the front buffer.
+            back_max_size (int): The maximum size of the back buffer.
+            margin_around_image (float): Margin size to apply around image samples.
+        """
+
         try:
             self.purge()
         finally:
@@ -470,120 +498,3 @@ class Buffer():
 
             # Restart buffer
             self.start()
-
-   
-class Sample():
-    def __init__(self):
-        pass
-
-    def get(self):
-        pass
-
-class App(tk.Tk):
-    def __init__(self, raster_src, polygons_src):
-        super().__init__()
-        self.raster_src = raster_src
-        self.polygons_src = polygons_src
-        self.polygons = gpd.read_file(polygons_src)
-        self.title("Sample Interface")
-        self.geometry("300x200")  # Set window size
-
-        # Center label at the top
-        self.center_label = tk.Label(self, text="Center Label", font=("Arial", 14))
-        self.center_label.pack(pady=10)
-
-        # Frame for buttons
-        button_frame = tk.Frame(self)
-        button_frame.pack(pady=10)
-
-        # Prev and Next buttons
-        self.prev_button = tk.Button(button_frame, text="Prev", command=self.on_prev)
-        self.prev_button.pack(side=tk.LEFT, padx=10)
-
-        # self.next_button = ttk.Button(button_frame, text="Next", command=lambda:test(self.next_button))
-        self.next_button = tk.Button(button_frame, text="Next", command=self.on_next)
-        self.next_button.pack(side=tk.LEFT, padx=10)
-
-        # Frame for the two labels
-        label_frame = tk.Frame(self)
-        label_frame.pack(pady=10)
-
-        # Side-by-side labels
-        self.left_label = tk.Label(label_frame, text="Left Label", font=("Arial", 10))
-        self.left_label.pack(side=tk.LEFT, padx=20)
-
-        self.right_label = tk.Label(label_frame, text="Right Label", font=("Arial", 10))
-        self.right_label.pack(side=tk.LEFT, padx=20)
-
-        
-        self.buffer = Buffer(
-            rasters_src=raster_src,
-            polygons=self.polygons,
-            buffer_front_max_size=10,
-            buffer_back_max_size=5,
-            )
-        self.buffer.start()
-        while len(self.buffer.result_front_list) < 1:
-            sleep(0.1)
-        current_pos, current_file_path, _, _ = self.buffer.result_front_list[0]
-        self.center_label.config(text=f"Sample {current_pos}")
-        self.buffer.current_file_path = current_file_path
-
-        # Start the update loop
-        self.update_interval = 100  # 1000 milliseconds = 1 second
-        self.update()
-
-    def on_prev(self):
-        # Handle "Prev" button click
-        self.prev_button.config(state='disabled')
-        self.next_button.config(state='disabled')
-        while self.buffer.buffer_back_size.value == 1 or self.buffer.buffer_front_size.value == 1:
-            sleep(0.1)
-        thread = threading.Thread(target=self.buffer.move_backward)
-        thread.start()
-
-    def on_next(self):
-        # Handle "Next" button click
-        self.prev_button.config(state='disabled')
-        self.next_button.config(state='disabled')
-        while self.buffer.buffer_back_size.value == 1 or self.buffer.buffer_front_size.value == 1:
-            sleep(0.1)
-        thread = threading.Thread(target=self.buffer.move_forward)
-        thread.start()
-
-    def update(self):
-        self.center_label.config(text=f"Sample {self.buffer.current_pos}")
-        self.right_label.config(text=f"buffer : {self.buffer.buffer_front_size.value}/{self.buffer.buffer_front_max_size}")
-        self.left_label.config(text=f"buffer : {self.buffer.buffer_back_size.value}/{self.buffer.buffer_back_max_size}")
-        self.after(self.update_interval, self.update)
-
-    def exit(self):
-        self.buffer.purge()
-        self.quit()
-
-if __name__ == '__main__':
-    # from multiprocessing import Manager
-    # manager = Manager()
-    # my_list = manager.list([1,2,3,4,5,6])
-    # print(my_list)
-    # del my_list[0]
-    # print(my_list)
-    # a = my_list.pop()
-    # print(a)
-    # b = my_list.pop(0)
-    # print(b)
-    # print(my_list)
-    # my_list.append(12)
-    # print(my_list)
-    # my_list.insert(0,42)
-    # print(my_list)
-    # quit()
-    raster_src = "./data/sources/scratch_dataset"
-    polygons_src = "./data/sources/gt_tot.gpkg"
-
-    # Create interface
-    app = App(raster_src, polygons_src)
-
-     # Override the window's close protocol
-    app.protocol("WM_DELETE_WINDOW", app.exit)
-    app.mainloop()

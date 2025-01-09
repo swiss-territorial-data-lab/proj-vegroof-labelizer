@@ -1,21 +1,26 @@
-import os
 import tkinter as tk
-from tkinter import Tk, Menu, Label, Button, Frame, font, filedialog, messagebox, Checkbutton, Scrollbar, IntVar, Canvas,Toplevel, Text
+from tkinter import Tk, Menu, Label, Frame, font, messagebox, Canvas
 from tkinter import ttk
-from PIL import Image, ImageTk
 from time import sleep
-import numpy as np
 import geopandas as gpd
-import rasterio
-from rasterio.mask import mask
 from functools import partial
 import threading
-from src.menu_utils import *
+from src.menus import *
+from src.utils import *
 from src.image_utils import show_image, zoom, drag_image, start_drag, update_image
-# from src.menu_utils import set_all_states, thread_restart_buffer
+
 
 class ImageViewer:
+    """A GUI-based application to manage and annotate geospatial data with polygons and rasters.
+    Handles image navigation, metadata display, and user interactions."""
+
     def __init__(self, root):
+        """
+        Initialize the ImageViewer class with the main Tkinter root window.
+        Parameters:
+            - root (Tk): Main Tkinter window object for the application.
+        """
+
         self.UnsavedChanges = False
         self.root = root
         self.polygon_path = ""
@@ -39,8 +44,6 @@ class ImageViewer:
             'sample shown': '0/0',
         }
 
-        self.do_autosave = False
-
         #   _ordering variables and metadata
         self.order_var = ""
         self.order_asc = True
@@ -50,7 +53,6 @@ class ImageViewer:
         self.drag_prop_to_zoom = True
         self.margin_around_image = 0
       
-
         #   _input variables
         self.frac_col = ""
         self.interest_col = ""
@@ -64,6 +66,9 @@ class ImageViewer:
         self.buffer = None
         self.buffer_front_max_size = 10
         self.buffer_back_max_size = 5
+
+        #   _others
+        self.do_autosave = False
 
         # Set a custom font style for the app
         self.custom_font = font.Font(family="Helvetica", size=10, weight="bold")
@@ -112,7 +117,7 @@ class ImageViewer:
         self.label_infos_files =  Label(root, text=text_infos, font=file_info_label_font, fg="#ecf0f1", bg="#2c3e50", anchor="center", justify="left")
         self.label_infos_files.place(x=10, y=10)
 
-        # style of buttons
+        # Define style of buttons
         style = ttk.Style()
         style.theme_use("clam")  # Try 'clam', 'default', 'alt', etc.
         style.configure("TButton", font=self.custom_font, foreground="#ecf0f1", background="#3498db", padding=6)
@@ -172,11 +177,11 @@ class ImageViewer:
         self.loading_lbl.place(x=550, y=685)
 
         # Prepare loading images
-        self.loading_frames = [tk.PhotoImage(file="src/loading.gif", format=f"gif -index {i}") for i in range(12)]
+        self.loading_frames = [tk.PhotoImage(file="src/images/loading.gif", format=f"gif -index {i}") for i in range(12)]
         self.current_loading_frame = 0
         self.loading_running = False
 
-        # set the sample index selector and tot dataset
+        # Set the sample index selector and tot dataset
         label_sample_index_1 = Label(root, text="Go to sample : ", font=file_info_label_font, fg="#ecf0f1", bg="#2c3e50", anchor="center", justify="left")
         label_sample_index_1.place(x=610, y=690)
         self.sample_index_combobox = ttk.Combobox(root, values='-')
@@ -208,7 +213,7 @@ class ImageViewer:
             self.lst_buttons_category.append(new_button)
 
         # Create buffer labels
-        self.buffer_front_lbl_state = Label(root, text=f"Front Buffer : 0/{self.buffer_front_max_size}",
+        self.buffer_front_lbl_state = Label(root, text=f"Forward in-memory : 0/{self.buffer_front_max_size}",
                                   font=file_info_label_font, 
                                   fg="#ecf0f1", 
                                   bg="#2c3e50",
@@ -216,7 +221,7 @@ class ImageViewer:
                                   justify="left",
         )
         self.buffer_front_lbl_state.place(x=20, y=640)
-        self.buffer_back_lbl_state = Label(root, text=f"Back Buffer : 0/{self.buffer_back_max_size}",
+        self.buffer_back_lbl_state = Label(root, text=f"Backward in-memory : 0/{self.buffer_back_max_size}",
                                   font=file_info_label_font, 
                                   fg="#ecf0f1", 
                                   bg="#2c3e50",
@@ -231,7 +236,7 @@ class ImageViewer:
                                   anchor="center",
                                   justify="left",
         )
-        self.buffer_infos_lbl.place(x=400, y=640)
+        self.buffer_infos_lbl.place(x=350, y=640)
 
         # Key binding
         #   _samples navigation
@@ -249,21 +254,32 @@ class ImageViewer:
 
         show_image(self)
         threading.Thread(target=self.auto_process).start()
-        # self.running = True
-        # self.animate_loading_icon()
 
     def auto_save(self):
+        """Automatically save changes at regular intervals if autosave is enabled."""
         if self.do_autosave:
             save(self, verbose=False)
             print("SAVED!")
-            self.root.after(1000 * 10, self.auto_save)
+            minute =  1000 * 60
+            self.root.after(5 * minute, self.auto_save) # waits x min before resaving again
+
+    def animate_loading_icon(self):
+        """Animate a loading icon to provide feedback during processing."""
+        if self.loading_running:
+            # Update the icon
+            self.loading_lbl.config(image=self.loading_frames[self.current_loading_frame])
+            self.current_loading_frame = (self.current_loading_frame + 1) % len(self.loading_frames)
+
+            # Schedule the next frame
+            self.root.after(100, self.animate_loading_icon)
 
     def auto_process(self):
+        """Continuously update the interface and buffer states in the background."""
+
         # infos about buffers
         if self.buffer:
-            self.buffer_front_lbl_state.config(text=f"Front Buffer : {min(self.buffer.buffer_front_size.value, self.buffer_front_max_size)}/{self.buffer_front_max_size}")
-            self.buffer_back_lbl_state.config(text=f"Back Buffer : {min(self.buffer.buffer_back_size.value, self.buffer_back_max_size)}/{self.buffer_back_max_size}")
-
+            self.buffer_front_lbl_state.config(text=f"Forward in-memory : {min(self.buffer.buffer_front_size.value, self.buffer_front_max_size)}/{self.buffer_front_max_size}")
+            self.buffer_back_lbl_state.config(text=f"Backward in-memory : {min(self.buffer.buffer_back_size.value, self.buffer_back_max_size)}/{self.buffer_back_max_size}")
         if self.loading_running == True:
             self.animate_loading_icon()
         else:
@@ -271,31 +287,30 @@ class ImageViewer:
         self.root.after(100, self.auto_process)
 
     def start_process(self):
-            self.running = True
-            self.start_button.config(state=tk.DISABLED)
+        """Start a process that includes animation and thread execution for tasks."""
 
-            # Start the animation
-            self.animate_loading_icon()
+        self.running = True
+        self.start_button.config(state=tk.DISABLED)
 
-            # Run the time-consuming task in a separate thread
-            threading.Thread(target=self.long_task, daemon=True).start()
+        # Start the animation
+        self.animate_loading_icon()
 
-
-    def animate_loading_icon(self):
-        if self.loading_running:
-            # Update the icon
-            self.loading_lbl.config(image=self.loading_frames[self.current_loading_frame])
-            self.current_loading_frame = (self.current_loading_frame + 1) % len(self.loading_frames)
-            # Schedule the next frame
-            self.root.after(100, self.animate_loading_icon)
+        # Run the time-consuming task in a separate thread
+        threading.Thread(target=self.long_task, daemon=True).start()
 
     def show_image(self):
+        """Displays the current image sample on the canvas."""
+        
         show_image(self)
     
     def update_image(self):
+        """Redraws the image on the canvas, adjusting for zoom and offsets."""
+        
         update_image(self)
     
     def show_next_image(self):
+        """Navigate to and display the next image in the dataset."""
+
         def thread_target():
             try:
                 while self.buffer.buffer_front_size.value == 1 or self.buffer.buffer_back_size.value == 1:
@@ -325,6 +340,8 @@ class ImageViewer:
         thread.start()
 
     def show_previous_image(self):
+        """Navigate to and display the previous image in the dataset."""
+
         def thread_target():
             try:
                 while self.buffer.buffer_front_size.value == 1 or self.buffer.buffer_back_size.value == 1:
@@ -354,6 +371,8 @@ class ImageViewer:
         thread.start()
     
     def update_infos(self):
+        """Update displayed information about the dataset, metadata, and UI elements."""
+
         # update files info
         self.num_dataset_to_show = len(self.dataset_to_show)
         self.sample_pos = 0
@@ -394,7 +413,6 @@ class ImageViewer:
             select_lbl = self.frac_col_val_to_lbl[str(cat_selection)]
             select_lbl = select_lbl[0:13] + '..' if len(select_lbl) > 15 else select_lbl
             interest_lbl = interest_lbl[0:13] + '..' if len(interest_lbl) > 15 else interest_lbl
-            #interest_lbl = str(interest_lbl)[0:min(len(str(interest_lbl)), 10)]
             self.title.config(text=f"select val: {select_lbl} | new val: {interest_lbl}")
         elif self.mode == 'correcter':
             self.title.config(text=f"value: {interest_lbl}")
@@ -418,6 +436,12 @@ class ImageViewer:
             messagebox.showinfo("informaton", "Last sample reached !")
 
     def attribute_button_command(self, button: ttk.Button, val):
+        """
+        Assign a command to a button for updating a sample's category.
+        Parameters:
+            - button (ttk.Button): The button to assign the command to.
+            - val: The category value to set when the button is clicked.
+        """
         def change_category(self, cat):
             self.new_dataset.loc[self.sample_index, self.interest_col] = cat
             self.dataset_to_show.loc[self.sample_index, self.interest_col] = cat
@@ -435,6 +459,11 @@ class ImageViewer:
         button.config(command=partial(change_category, self, val))
 
     def select_sample(self, event):
+        """
+        Handle user selection of a specific sample via the combobox.
+        Parameters:
+            - event: The event object triggered by the combobox selection.
+        """
         # Update position
         self.sample_pos = int(self.sample_index_combobox.get()) - 1
         self.sample_index = self.dataset_to_show.index[self.sample_pos]
@@ -447,38 +476,9 @@ class ImageViewer:
         set_all_states(self.root, 'disabled', self.menu_bar)
 
         # Restart buffer
-        self.buffer_infos_lbl.config(text="Restarting buffer...")
+        self.buffer_infos_lbl.config(text="Restarting Temp storages...")
         self.loading_running = True
         threading.Thread(target=thread_restart_buffer, args=[self,]).start()
-        # thread_restart_buffer(self, mode='reset')
-
-        # # Synchronization event to signal when the thread is done
-        # thread_done = threading.Event()
-
-        # # 
-        # def thread_target():
-        #     try:
-        #         self.buffer.reset()
-        #     except Exception as e:
-        #         print(f"Error in thread: {e}")
-        #     finally:
-        #         thread_done.set()  # Signal that the thread is done
-
-        # # Start the thread
-        # thread = threading.Thread(target=thread_target)
-        # thread.start()
-
-        # # Wait for the thread to finish (in order to avoid read-write conflicts)
-        # while not thread_done.is_set():
-        #     sleep(0.1)
-
-        # try:
-        #     self.buffer.reset()
-        # except Exception as e:
-        #     print("an error occured while reseting buffer: ", e)
-        # finally:
-        #     show_image(self)
-        #     self.update_infos()
         
         
 def main():

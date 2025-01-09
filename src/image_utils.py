@@ -1,18 +1,21 @@
-import numpy as np
-from PIL import Image, ImageTk, ImageDraw
-import rasterio
-from rasterio.mask import mask
-from rasterio.plot import show
-from rasterio.merge import merge
+from PIL import Image, ImageTk
 from time import sleep
 import tkinter as tk
 from shapely.affinity import scale
-from shapely.geometry import Polygon, MultiPolygon
-import matplotlib.pyplot as plt
-from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
+from shapely.geometry import MultiPolygon
 
 
 def scale_geometry(geometry, xfact, yfact):
+    """Scales a Polygon or MultiPolygon geometry.
+    
+    Parameters:
+        geometry (Geometry): The geometry to scale, either Polygon or MultiPolygon.
+        xfact (float): Scaling factor along the x-axis.
+        yfact (float): Scaling factor along the y-axis.
+    
+    Returns:
+        Geometry: The scaled geometry or the input geometry if not Polygon/MultiPolygon.
+    """
     if geometry.geom_type == "MultiPolygon":
         # Scale each polygon individually and reassemble into MultiPolygon
         scaled_parts = [scale(polygon, xfact=xfact, yfact=yfact) for polygon in geometry.geoms]
@@ -24,7 +27,17 @@ def scale_geometry(geometry, xfact, yfact):
         # If not Polygon or MultiPolygon, return the geometry unchanged
         return geometry
     
+
 def show_image(self):
+    """Displays the current image sample on the canvas.
+    
+    Parameters:
+        None
+    
+    Returns:
+        None
+    """
+
     if self.buffer:
         while self.buffer.current_file_path == "":
             sleep(0.1)
@@ -32,7 +45,7 @@ def show_image(self):
     try:
         # When no matching raster
         if len(self.list_rasters_src) == 0 or len(self.dataset_to_show) == 0 or (self.buffer and self.buffer.current_file_path == 'no-sample'):
-            self.original_image = Image.open("./src/no_image.png")#.resize((self.img_width, self.img_height))
+            self.original_image = Image.open("./src/images/no_image.png")#.resize((self.img_width, self.img_height))
             self.display_image = self.original_image.resize((self.img_width, self.img_height))
             self.photo = ImageTk.PhotoImage(self.display_image)
             self.image_id = self.image.create_image(0, 0, anchor=tk.NW, image=self.photo)
@@ -45,8 +58,6 @@ def show_image(self):
         self.display_image = self.original_image.resize((self.img_width, self.img_height))
         self.photo = ImageTk.PhotoImage(self.display_image)
         self.image_id = self.image.create_image(0, 0, anchor=tk.NW, image=self.photo)
-        # cat = self.dataset_to_show.iloc[self.sample_pos][self.frac_col]
-        # self.title.config(text=f"sample {self.sample_index} - {self.frac_col_val_to_lbl[str(cat)]}")
 
         # Apply initial zoom
         a = (max(self.buffer.current_deltax, self.buffer.current_deltay) + 2 * self.margin_around_image)
@@ -66,53 +77,15 @@ def show_image(self):
             self.show_image()
 
 
-def zoom_follow_cursor(self, event):
-    #==========
-    # NOT WORKING YET
-    #==========
-
-    # Store old zoom level and dimensions
-    old_zoom = self.current_zoom
-    old_logical_width = self.img_width / old_zoom
-    old_logical_height = self.img_height / old_zoom
-
-    # Adjust zoom level
-    if event.delta > 0:
-        self.current_zoom *= 1.1
-    elif event.delta < 0:
-        self.current_zoom /= 1.1
-
-    # Constrain zoom level
-    self.current_zoom = max(1.0, min(self.current_zoom, self.initial_zoom * 1.5))
-
-    # Calculate the zoom factor
-    zoom_factor = self.current_zoom / old_zoom
-
-    # Update logical map dimensions
-    self.logical_width = self.img_width / self.current_zoom
-    self.logical_height = self.img_height / self.current_zoom
-
-    # Get cursor position relative to the image (screen coordinates)
-    cursor_x = self.image.canvasx(event.x)
-    cursor_y = self.image.canvasy(event.y)
-
-    # Convert cursor to logical coordinates
-    cursor_logical_x = self.offset_x * self.img_width + cursor_x / self.img_width * old_logical_width
-    cursor_logical_y = self.offset_y * self.img_height + cursor_y / self.img_height * old_logical_height
-
-    # Calculate new offsets (relative to the full map)
-    self.offset_x = (cursor_logical_x - self.logical_width / 2) / self.img_width
-    self.offset_y = (cursor_logical_y - self.logical_height / 2) / self.img_height
-
-    # Constrain offsets to keep the visible area within bounds
-    self.offset_x = max(0, min(self.offset_x, 1 - self.logical_width / self.img_width))
-    self.offset_y = max(0, min(self.offset_y, 1 - self.logical_height / self.img_height))
-
-    # Update and display the resized image
-    self.update_image()
-
-
-def zoom(self, event):
+def zoom(self, event):    
+    """Adjusts zoom level and offsets based on mouse scroll events.
+    
+    Parameters:
+        event (tk.Event): The mouse scroll event containing zoom direction.
+    
+    Returns:
+        None
+    """
     # Adjust zoom level
     if event.delta > 0:
         self.current_zoom *= 1.1
@@ -131,13 +104,30 @@ def zoom(self, event):
     # Update and display the resized image
     self.update_image()
 
+
 def start_drag(self, event):
+    """Records the initial position of a mouse drag for panning.
+    
+    Parameters:
+        event (tk.Event): The mouse button press event indicating drag start.
+    
+    Returns:
+        None
+    """
     # Record the starting position for dragging
     self.last_drag_x = event.x
     self.last_drag_y = event.y
 
 
 def drag_image(self, event):
+    """Updates image offsets during a mouse drag and redraws the image.
+    
+    Parameters:
+        event (tk.Event): The mouse movement event indicating drag motion.
+    
+    Returns:
+        None
+    """
     # Compute the drag distance
     dx = event.x - self.last_drag_x
     dy = event.y - self.last_drag_y
@@ -164,12 +154,21 @@ def drag_image(self, event):
     # Redraw the image
     self.update_image()
 
+
 def update_image(self):
+    """Redraws the image on the canvas, adjusting for zoom and offsets.
+    
+    Parameters:
+        None
+    
+    Returns:
+        None
+    """
     # Calculate the dimensions of the cropped area
     crop_width = int(self.img_width / self.current_zoom)
     crop_height = int(self.img_height / self.current_zoom)
-
     ratio = self.original_size[0] / self.img_width
+
     # Calculate the crop box
     center_x = self.offset_x * self.img_width
     center_y = self.offset_y * self.img_height
@@ -183,6 +182,7 @@ def update_image(self):
     top = int(top * ratio)
     right = int(right * ratio)
     bottom = int(bottom * ratio)
+    
     # Crop and resize the image
     cropped_image = self.original_image.crop((left, top, right, bottom))
     resized_image = cropped_image.resize((self.img_width, self.img_height), Image.LANCZOS)

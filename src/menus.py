@@ -1,28 +1,84 @@
-import tkinter as tk
-import os
 import numpy as np
-import pickle
-import rasterio
-import pandas as pd
-from time import sleep, time
-from tkinter import Tk, Menu, Label, Button, Frame, Text, font, filedialog, messagebox, Checkbutton, Scrollbar, IntVar, Canvas,Toplevel
-from tkinter.scrolledtext import ScrolledText
+import tkinter as tk
+from tkinter import Label, Frame, Text, messagebox, Checkbutton, Toplevel
 from tkinter import ttk
 from tkinter.ttk import Combobox
 from ttkwidgets import CheckboxTreeview
-import geopandas as gpd
 from functools import partial
 import threading
 
 
-import sys
-sys.path.insert(0,'D:\GitHubProjects\STDL_sample_labelizer')
-from src.processing import show_confusion_matrix
-from src.buffer import Buffer
+def thread_restart_buffer(self):
+    """
+    Restarts the buffer in a separate thread, manages potential errors, and updates UI information.
+
+    Parameters:
+        self: object - The instance of the class calling this function.
+
+    Returns:
+        None
+    """
+    # Reset buffer and then update shown infos
+    try:
+        self.buffer.restart(self.buffer_front_max_size, self.buffer_back_max_size, self.margin_around_image)
+    except Exception as e:
+        print("An error occured while restarting buffer: ", e)
+        # try:
+        #     save(self, verbose=False)
+        #     print("For safety measures, the current state of the work was saved.")
+        # except Exception as e:
+        #     print("During the management of the error, the program tried to save the work but did not manage due to the following error", e)
+        
+    finally:
+        self.loading_running = False
+        self.update_infos()
+        self.show_image()
+        self.buffer_infos_lbl.config(text="")
+        set_all_states(self.root, 'normal', self.menu_bar)
+
+
+def set_all_states(parent, state, menu=None):
+    """
+    Recursively sets the state of all widgets in a parent container and optionally updates a menu's state.
+
+    Parameters:
+        parent: Widget - The parent container whose children states will be updated.
+        state: str - The state to apply ('normal', 'disabled', etc.).
+        menu: Menu (optional) - The menu whose entries' states will be updated.
+
+    Returns:
+        None
+    """
+    for child in parent.winfo_children():
+        if isinstance(child, (ttk.Button, Text, ttk.Combobox)):
+            child.config(state=state)
+        elif isinstance(child, Frame):
+            set_all_states(child, state)
+    if menu:   
+        for i in range(menu.index('end') + 1):  # Iterate through all items
+            menu.entryconfig(i, state=state)
 
 
 def menu_mode_choice(self, mode_window):
-    def ok_button_pressed(return_value):
+    """
+    Handles the user interaction for selecting and configuring the mode of operation 
+    in the application's interface.
+
+    This function displays a configuration window allowing users to choose between 
+    'labelizer' and 'correcter' modes. It validates user inputs for missing or duplicate 
+    values, maps column values to labels, and updates relevant attributes based on 
+    the chosen mode.
+
+    Args:
+        self: Reference to the parent class instance containing the application's state.
+        mode_window (tk.Toplevel): The pop-up window for mode selection and configuration.
+
+    Returns:
+        return_value: used to make the main process wait for this menu to be completed before continuing the loading 
+        upon successful configuration or displays warnings for invalid inputs.
+    """
+
+    def ok_button_pressed(return_value, event=None):
         if combobox_mode.get() == 'labelizer':
             # test if nothing missing
             if do_select_col.get() == 1.0:
@@ -144,6 +200,7 @@ def menu_mode_choice(self, mode_window):
         return_value[0] = True
         mode_window.destroy()
     
+    # when choosing mode
     def mode_chosen(event):
         mode = combobox_mode.get()
         if mode == 'labelizer':
@@ -174,7 +231,8 @@ def menu_mode_choice(self, mode_window):
             toggle_selection_frame(frame_interest_col_mapping_sub11 ,'normal')
             toggle_selection_frame(frame_interest_col_mapping_sub12 ,'disabled')
             toggle_selection_frame(frame_select_col_mapping ,'disabled')
-            
+    
+    # when choosing to use a data selection column (two next functions)
     def checkbox_selection_col():
         if do_select_col.get() == 0:
             toggle_selection_frame(frame_select_col_mapping_sub1, 'disabled')
@@ -195,6 +253,7 @@ def menu_mode_choice(self, mode_window):
             elif isinstance(child, tk.Frame):
                 toggle_selection_frame(child, state)
 
+    # when selection column of data selection
     def select_col_selection(event):
         select_col = combobox_select_col.get()
         lst_values = self.new_dataset[select_col].unique()
@@ -213,6 +272,7 @@ def menu_mode_choice(self, mode_window):
             lst_vals_select_col_val[i].config(foreground='light grey', state='disabled')
             lst_vals_select_col_lbl[i].config(state='disabled')
 
+    # when selecting the column of interest
     def interest_col_selection(event):
         select_col = combobox_interest_col.get()
         lst_values = self.new_dataset[select_col].unique()
@@ -400,299 +460,16 @@ def menu_mode_choice(self, mode_window):
     return return_value[0]
 
 
-def load(self, mode=0):
-    def start_buffer():
-        try:
-            if self.buffer:
-                self.buffer.purge()
-        finally:
-            try:
-                self.buffer = Buffer(
-                    rasters_src=self.raster_path,
-                    polygons=self.dataset_to_show,
-                    margin_around_image=self.margin_around_image,
-                    buffer_front_max_size=self.buffer_front_max_size,
-                    buffer_back_max_size=self.buffer_back_max_size,
-                )
-                self.buffer.current_pos = self.sample_pos
-                self.buffer.start()
-                self.show_image()
-            except Exception as e:
-                print("An error occured while initiating buffer: ", e)
-            finally:
-                # Activate navigation buttons
-                set_all_states(self.root, 'normal', self.menu_bar)
-                self.loading_running = False
-                self.buffer_infos_lbl.config(text="")
-
-    # test if ongoing unsaved project
-    if self.UnsavedChanges == True:
-        result = messagebox.askyesnocancel("Confirmation", "There is unsaved changes! Do you want to save?")
-        if result == True:
-            save(self)
-        elif result == False:
-            pass
-        else:
-            return
-
-    # load polygon
-    if mode in [0,1]:
-        self.polygon_path = filedialog.askopenfilename(
-        title="Select the vector source",
-        filetypes=[("GeoPackage Files", "*.gpkg"), ("All Files", "*.*")]
-        )
-        if self.polygon_path != "":
-            self.dataset = gpd.read_file(self.polygon_path)
-            self.new_dataset = gpd.read_file(self.polygon_path)
-            self.old_crs = self.dataset.crs
-            
-            # verify if a save already exists
-            new_polygon_path = self.polygon_path.split('.')[:-1]
-            new_polygon_path.append("_corrected")
-            new_polygon_path = ''.join(new_polygon_path)
-            if os.path.exists(new_polygon_path):
-                if messagebox.askyesno("Save found", "A save already exists for this file. Do you want to continue from it?"):
-                    try:
-                        with open(os.path.join(new_polygon_path, 'save_file.pkl'), 'rb') as in_file:
-                            dict_save = pickle.load(in_file)
-                        self.polygon_path = dict_save['polygon_path']
-                        self.raster_path = dict_save['raster_path']
-                        self.dataset = dict_save['dataset']
-                        self.new_dataset = dict_save['new_dataset']
-                        self.dataset_to_show = dict_save['dataset_to_show']
-                        self.new_crs = dict_save['new_crs']
-                        self.old_crs = dict_save['old_crs']
-                        self.sample_index = dict_save['sample_index']
-                        self.sample_pos = dict_save['sample_pos']
-                        self.shown_cat = dict_save['shown_cat']
-                        self.shown_meta = dict_save['shown_meta']
-                        self.list_rasters_src = dict_save['list_rasters_src']
-                        self.mode = dict_save['mode']
-                        self.frac_col = dict_save['frac_col']
-                        self.interest_col = dict_save['interest_col']
-                        self.frac_col_lbl_to_val = dict_save['frac_col_lbl_to_val']
-                        self.frac_col_val_to_lbl = dict_save['frac_col_val_to_lbl']
-                        self.interest_col_lbl_to_val = dict_save['interest_col_lbl_to_val']
-                        self.interest_col_val_to_lbl = dict_save['interest_col_val_to_lbl']
-                        self.changes_log = dict_save['changes_log']
-                    except Exception as e:
-                        print("An error occured. The save file \"save_file.pkl\" must be absent or corrupted.")
-                        print(f"Original error: {e}")
-                    mode = -1
-            if mode != -1:
-                # reset variables
-                self.changes_log = []
-                self.shown_cat = []
-                self.shown_meta = []
-                self.order_var = None
-                self.order_asc = True
-
-                # show mode choice window
-                top_level = Toplevel(self.root)
-                is_mode_well_set =  menu_mode_choice(self, top_level)
-                if not is_mode_well_set: # make sure that the polygon is well set
-                    return
-                
-                # continue to process input polygons
-                if self.mode == 'labelizer':
-                    """self.new_dataset.rename(columns={self.frac_col:'class_binary'}, inplace=True)
-                    self.frac_col = 'class_binary'
-                    self.new_dataset.class_binary = self.new_dataset.class_binary.astype('string')
-                    for cat, val in self.frac_col_lbl_to_val.items():
-                        self.new_dataset.loc[self.new_dataset.class_binary == str(val), 'class_binary'] = str(cat)"""
-                    self.new_dataset[self.interest_col] = ""
-                self.dataset_to_show = self.new_dataset.copy()
-
-    # load rasters
-    if mode in [0,2]:
-        self.raster_path = filedialog.askdirectory(title="Select the raster source")
-        if self.raster_path != '':
-            self.list_rasters_src = []
-            for r, d, f in os.walk(self.raster_path):
-                for file in f:
-                    if file.endswith('.tif'):
-                        file_src = r + '/' + file
-                        file_src = file_src.replace('\\','/')
-                        self.list_rasters_src.append(file_src)
-            # find crs
-            if len(self.list_rasters_src) > 0:
-                with rasterio.open(self.list_rasters_src[0], 'r') as raster:
-                    self.new_crs = raster.crs
-
-    if mode == 3:
-        save_path = filedialog.askopenfilename(
-        title="Select the save file",
-        filetypes=[("Pickle Files", "*.pkl *.pickle"), ("All Files", "*.*")]
-        )
-
-        if save_path != "":
-            try:
-                with open(os.path.join(save_path), 'rb') as in_file:
-                    dict_save = pickle.load(in_file)
-                self.polygon_path = dict_save['polygon_path']
-                self.raster_path = dict_save['raster_path']
-                self.dataset = dict_save['dataset']
-                self.new_dataset = dict_save['new_dataset']
-                self.dataset_to_show = dict_save['dataset_to_show']
-                self.new_crs = dict_save['new_crs']
-                self.old_crs = dict_save['old_crs']
-                self.sample_index = dict_save['sample_index']
-                self.sample_pos = dict_save['sample_pos']
-                self.shown_cat = dict_save['shown_cat']
-                self.shown_meta = dict_save['shown_meta']
-                self.list_rasters_src = dict_save['list_rasters_src']
-                self.mode = dict_save['mode']
-                self.frac_col = dict_save['frac_col']
-                self.interest_col = dict_save['interest_col']
-                self.frac_col_lbl_to_val = dict_save['frac_col_lbl_to_val']
-                self.frac_col_val_to_lbl = dict_save['frac_col_val_to_lbl']
-                self.interest_col_lbl_to_val = dict_save['interest_col_lbl_to_val']
-                self.interest_col_val_to_lbl = dict_save['interest_col_val_to_lbl']
-                self.changes_log = dict_save['changes_log']
-            except Exception as e:
-                print("An error occured. The save file \"save_file.pkl\" must be absent or corrupted.")
-                print(f"Original error: {e}")
-
-    if self.polygon_path != "" and self.raster_path != "":
-        # Attriute new crs
-        self.new_dataset = self.new_dataset.to_crs(crs=self.new_crs)
-        self.dataset_to_show = self.dataset_to_show.to_crs(crs=self.new_crs)
-
-        # Reset categorie buttons (if loading from former project)
-        for i in range(6):
-            self.lst_buttons_category[i].config(text='-', state='disabled')
-
-        # Activate categorie buttons
-        for idx, (val, label) in enumerate(self.interest_col_val_to_lbl.items()):
-            label = label[0:13] + '..' if len(label) > 15 else label
-            self.lst_buttons_category[idx].config(text=label, state='normal')
-            self.attribute_button_command(self.lst_buttons_category[idx], val)
-        
-        # Initiate buffer
-        try:
-            set_all_states(self.root, 'disabled', self.menu_bar)
-            self.buffer_infos_lbl.config(text="Initialising buffer...")
-            self.loading_running = True
-            threading.Thread(target=start_buffer).start()
-        finally:
-            self.update_infos()
-            self.do_autosave = True
-            self.auto_save()
-
-    elif self.polygon_path != "" or self.raster_path != "":
-        self.update_infos()
-    
-
-def save(self, verbose=True):
-    # if self.UnsavedChanges == 0:
-    #     _ = messagebox.showinfo("Information", "No changes has been detected.")
-    #     return
-
-    # create new gpgk file
-    try:
-        # create folder
-        new_polygon_path = self.polygon_path.split('.')[:-1]
-        new_polygon_path.append("_corrected")
-        new_polygon_path = ''.join(new_polygon_path)
-        if not os.path.exists(new_polygon_path):
-            os.mkdir(new_polygon_path)
-
-        # create geopackage file
-        new_name = new_polygon_path.split('/')[-1]
-        new_polygon_name = new_name + ".gpkg"
-        new_polygon_name = ''.join(new_polygon_name)
-        new_csv_name = new_name + ".csv"
-        new_csv_name = ''.join(new_csv_name)
-        new_polygon_src = os.path.join(new_polygon_path, new_polygon_name)
-        new_csv_src = os.path.join(new_polygon_path, new_csv_name)
-
-        # save dataset to geopackage and csv
-        if self.mode == 'labelizer':
-            self.new_dataset.loc[self.new_dataset[self.interest_col] != ""].drop('geometry', axis=1).to_csv(new_csv_src, sep=';', index=None)
-            self.new_dataset.loc[self.new_dataset[self.interest_col] != ""].to_crs(self.old_crs).to_file(new_polygon_src)
-        else: # if self.mode  = 'correcter
-            self.new_dataset.to_crs(self.old_crs).to_file(new_polygon_src)
-            self.new_dataset.drop('geometry', axis=1).to_csv(new_csv_src, sep=';', index=None)
-
-        # save list of changes
-        with open(os.path.join(new_polygon_path, 'modification_logs.txt'), 'w') as file:
-            for change in self.changes_log:
-                file.write(f"{change}\n")
-
-        # save GeoDataFrames
-        dict_save = {
-            'polygon_path': self.polygon_path,
-            'raster_path': self.raster_path,
-            'dataset': self.dataset,
-            'new_dataset': self.new_dataset,
-            'dataset_to_show': self.dataset_to_show,
-            'new_crs': self.new_crs,
-            'old_crs': self.old_crs,
-            'sample_index': self.sample_index,
-            'sample_pos': self.sample_pos,
-            'shown_cat': self.shown_cat,
-            'shown_meta': self.shown_meta,
-            'list_rasters_src': self.list_rasters_src,
-            'mode': self.mode,
-            'frac_col': self.frac_col,
-            'interest_col': self.interest_col,
-            'frac_col_lbl_to_val': self.frac_col_lbl_to_val,
-            'frac_col_val_to_lbl': self.frac_col_val_to_lbl,
-            'interest_col_lbl_to_val': self.interest_col_lbl_to_val,
-            'interest_col_val_to_lbl': self.interest_col_val_to_lbl,
-            'changes_log': self.changes_log,
-        }
-        with open(os.path.join(new_polygon_path, 'save_file.pkl'),'wb') as out_file:
-            pickle.dump(dict_save, out_file)
-
-    except AttributeError:
-        _ = messagebox.showerror("Error", "A problem happened! Either the path to the polygon has not been set or is non-existant.")
-    else:
-        if verbose:
-            _ = messagebox.showinfo("Information", f"The changes have been saved in folder :\n{new_polygon_path}")
-        self.UnsavedChanges = False
-
-        # compute visualization of data analysis
-        # if self.mode == 'correcter':
-        #     dict_char_to_num = {'b':0,'t':1,'s':2,'e':3,'l':4,'i':5}
-        #     pred_dataset = self.dataset.loc[list(self.new_dataset.index)]
-        #     true = [dict_char_to_num[x] for x in list(self.new_dataset['class'].values)]
-        #     pred = [dict_char_to_num[x] for x in list(pred_dataset['class'].values)]
-        #     show_confusion_matrix(
-        #         y_pred=pred,
-        #         y_true=true,
-        #         target_src=os.path.join(new_polygon_path, 'performances.png'),
-        #         class_labels=self.frac_col_lbl_to_val.values(),
-        #         title="Performances",
-        #         do_save=True,
-        #         do_show=False,
-        #     )
-
-
-def exit(self):
-    # Check if program processing
-    if self.loading_running:
-        messagebox.showwarning("Process running", "Please, wait for the running processes to finish before quitting.")
-        return
-    
-    # Check if unsaved changes
-    if self.UnsavedChanges == True:
-        result = messagebox.askyesnocancel("Confirmation", "There is unsaved changes! Do you want to save?")
-        if result == True:
-            save(self)
-        elif result == False:
-            pass
-        else:
-            return
-    
-    # Purge the buffer before quitting
-    if self.buffer:
-        self.buffer.purge()
-
-    self.root.quit()
-
-
 def sort_and_filter(self):
+    """
+    Filters and sorts the dataset based on selected categories and the current sorting configuration.
+
+    Parameters:
+        self: object - The instance of the class calling this function.
+
+    Returns:
+        DataFrame - A filtered and sorted copy of the dataset.
+    """
     shown_cat_keys = [key for key,val in self.frac_col_val_to_lbl.items() if val in self.shown_cat]
     indexes = self.new_dataset.loc[self.new_dataset[self.frac_col].astype('string').isin(shown_cat_keys)].index
     new_df = self.new_dataset.loc[indexes].copy()
@@ -704,38 +481,16 @@ def sort_and_filter(self):
     return new_df
 
 
-def thread_restart_buffer(self, mode='restart'):
-    # Reset buffer and then update shown infos
-    try:
-        self.buffer.restart(self.buffer_front_max_size, self.buffer_back_max_size, self.margin_around_image)
-    except Exception as e:
-        print("An error occured while restarting buffer: ", e)
-        try:
-            save(self)
-            print("For safety measures, the current state of the work was saved.")
-        except Exception as e:
-            print("During the management of the error, the program tried to save the work but did not manage due to the following error", e)
-        
-    finally:
-        self.loading_running = False
-        self.update_infos()
-        self.show_image()
-        self.buffer_infos_lbl.config(text="")
-        set_all_states(self.root, 'normal', self.menu_bar)
-
-
-def set_all_states(parent, state, menu=None):
-    for child in parent.winfo_children():
-        if isinstance(child, (ttk.Button, Text, ttk.Combobox)):
-            child.config(state=state)
-        elif isinstance(child, Frame):
-            set_all_states(child, state)
-    if menu:   
-        for i in range(menu.index('end') + 1):  # Iterate through all items
-            menu.entryconfig(i, state=state)
-
-
 def order(self):
+    """
+    Opens a window for selecting a sorting criterion and order, then updates the dataset and buffer accordingly.
+
+    Parameters:
+        self: object - The instance of the class calling this function.
+
+    Returns:
+        None
+    """
     def ok_button_pressed(window, combobox, radio_selection):
         if combobox.get() == "Select an option":
             window.destroy()
@@ -757,7 +512,7 @@ def order(self):
         set_all_states(self.root, 'disabled', self.menu_bar)
 
         # Restart buffer
-        self.buffer_infos_lbl.config(text="Restarting buffer...")
+        self.buffer_infos_lbl.config(text="Restarting Temp storages...")
         self.loading_running = True
         threading.Thread(target=thread_restart_buffer, args=[self,]).start()
 
@@ -804,6 +559,15 @@ def order(self):
 
 
 def open_list_cat(self):
+    """
+    Opens a window for selecting categories to display in the dataset, updates the dataset, and restarts the buffer.
+
+    Parameters:
+        self: object - The instance of the class calling this function.
+
+    Returns:
+        None
+    """
     def ok_button_pressed(window, tree):
         checked_items = tree.get_checked()
 
@@ -839,7 +603,7 @@ def open_list_cat(self):
         set_all_states(self.root, 'disabled', self.menu_bar)
 
         # Restart buffer
-        self.buffer_infos_lbl.config(text="Restarting buffer...")
+        self.buffer_infos_lbl.config(text="Restarting Temp storages...")
         self.loading_running = True
         threading.Thread(target=thread_restart_buffer, args=[self,]).start()
 
@@ -889,6 +653,15 @@ def open_list_cat(self):
 
 
 def open_list_meta(self):
+    """
+    Opens a window for selecting metadata categories to display, updates the dataset, and restarts the buffer.
+
+    Parameters:
+        self: object - The instance of the class calling this function.
+
+    Returns:
+        None
+    """
     def ok_button_pressed(window, tree):
         checked_items = tree.get_checked()
         checked_texts = [tree.item(item, "text") for item in checked_items]
@@ -940,9 +713,18 @@ def open_list_meta(self):
     ok_button = ttk.Button(checkbox_window, text='OK', command=partial(ok_button_pressed, checkbox_window, tree))
     ok_button.pack()
 
+
 def open_settings(self):
+    """
+    Opens a settings window for configuring various parameters, validates input, and restarts the buffer if necessary.
+
+    Parameters:
+        self: object - The instance of the class calling this function.
+
+    Returns:
+        None
+    """
     def ok_button_pressed(window, event=None):
-        # print(do_link_drag_zoom.get())
         # return
         zooming_max_text = txt_zooming_bound.get("1.0", "end-1c")
         margin_around_image_text = txt_context.get("1.0", "end-1c")
@@ -984,10 +766,10 @@ def open_settings(self):
                 raise ValueError("Margin around image should be in range [0, 1000]")
             if buffer_front_text < 2:
                 txt_buffer_front.delete("1.0", "end-1c")
-                raise ValueError("Front buffer should be higher or equal to 2")
+                raise ValueError("Forward In-memory buffer should be higher or equal to 2")
             if buffer_back_text < 2:
                 txt_buffer_back.delete("1.0", "end-1c")
-                raise ValueError("Back buffer should be higher or equal to 2")
+                raise ValueError("Backward in-memory should be higher or equal to 2")
 
         except Exception as e:
             messagebox.showwarning("warning", e)
@@ -1012,7 +794,7 @@ def open_settings(self):
             set_all_states(self.root, 'disabled', self.menu_bar)
 
             # Restart buffer
-            self.buffer_infos_lbl.config(text="Restarting buffer...")
+            self.buffer_infos_lbl.config(text="Restarting Temp storages...")
             self.loading_running = True
             threading.Thread(target=thread_restart_buffer, args=[self,]).start()
         else:
@@ -1048,7 +830,7 @@ def open_settings(self):
     frame_zooming_drag = Frame(frame_zooming, width=280, height=30)
     frame_zooming_drag.pack()
     frame_zooming_drag.pack_propagate(False)
-    lbl_zooming_drag = Label(frame_zooming_drag, text="Drag linked to zoom :", width=20, justify='left', anchor='w')
+    lbl_zooming_drag = Label(frame_zooming_drag, text="Drag speed linked to zoom :", width=20, justify='left', anchor='w')
     lbl_zooming_drag.pack(side="left", padx=10, anchor='w')
     do_link_drag_zoom = tk.IntVar(value=int(self.drag_prop_to_zoom))
     cb_zooming_drag = Checkbutton(frame_zooming_drag, text="", variable=do_link_drag_zoom)
@@ -1058,7 +840,7 @@ def open_settings(self):
     frame_context = Frame(Settings_window, relief=tk.RIDGE, borderwidth=2, width=280, height=40)
     frame_context.pack(pady=10)
     frame_context.pack_propagate(False)
-    lbl_context = Label(frame_context, text="Context size :", width=18, justify='left', anchor='w')
+    lbl_context = Label(frame_context, text="Margin around image :", width=18, justify='left', anchor='w')
     lbl_context.pack(side='left', padx=10)
     txt_context = Text(frame_context, wrap='none', width=4, height=1)
     txt_context.pack(side="right", padx=30)
@@ -1097,42 +879,3 @@ def open_settings(self):
     # OK button
     ok_button = ttk.Button(Settings_window, text='OK', command=partial(ok_button_pressed, Settings_window))
     ok_button.pack()
-
-
-def remove_sample(self):
-    # verify if polygon loaded
-    if len(self.new_dataset) == 0 or self.polygon_path == None:
-        messagebox.showwarning("Information", "No polygon file loaded!")
-        return
-
-    # Remove sample
-    self.dataset_to_show = self.dataset_to_show.drop(self.sample_index, axis=0)
-    self.new_dataset = self.new_dataset.drop(self.sample_index, axis=0)
-    
-    # Update current sample
-    self.sample_pos = (self.sample_pos + 1) % len(self.dataset_to_show)
-    self.sample_index = self.dataset_to_show.index[self.sample_pos]
-
-    # Add in corresponding list for potential retrieval
-    self.changes_log.append("removing " + str(self.sample_index))
-    
-    # Remove from buffer
-    self.original_image = None
-    self.display_image = None
-    try:
-        self.buffer.delete_sample()
-    finally:
-        self.UnsavedChanges = True
-        self.update_infos()
-        self.show_image()
-
-
-if __name__ == '__main__':
-    """polygon_path = "D:/GitHubProjects/STDL_Classifier/data/sources/gt_MNC_filtered.gpkg"
-    data = gpd.read_file(polygon_path)
-    data.drop('geometry', axis=1).to_csv("D:/GitHubProjects/STDL_Classifier/data/sources/gt_MNC_filtered_corrected/gt_MNC_filtered.gpkg.csv", sep=';', index=None)"""
-    # lst = ['a', 'b', 'c']
-    # lst.remove('a')
-    # print(lst)
-    pass
-
