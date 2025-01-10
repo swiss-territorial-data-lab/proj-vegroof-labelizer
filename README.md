@@ -1,5 +1,5 @@
 # GeoLabelizer
-This project consist in the developpement of a small software to help with the visualization and manual modification of samples with the [vegroof-project](https://github.com/swiss-territorial-data-lab/proj_vegroofs_DL).
+This project consist in the developpement of a small software to help with the visualization and manual labelization/correction of samples based on a set of rasters and a corresponding set of polygons.
 
 It can achieve two different tasks:
 - the labelization of a dataset. This mode consist in labelizing from scratch a set of polygons.
@@ -22,10 +22,9 @@ Here is a small step-by-step to labelize or correct your first dataset:
     <img src="src/images_tuto/labelizer_tuto_panel_0.png" alt="Description of image">
 </center>
 
-2) The first step is going to be to load rasters and polygons from the tab `load`. When loading the polygons, the following form will appear. There, you are asked to choose the mode between the two following options:
-  - Labelizer: this mode is planned for processing binary predictions (or non-categorized files) and choosing a category for each sample. When selecting this mode, you will be asked to choose a `class name` that correspond to the binary categorization. Once this class name is chosen, you will be ask to map the corresponding values for `bare` and `vegetated` in the "Values mapping" section before being able to click on `OK`.
-  - Correcter: this mode is to correct the prediction of a multi-class classification model. You will be asked to choose a `class name` but the last part will stay disabled and you will be able to directly click on the `OK button`
-
+2)  The first step is to load rasters and polygons from the menu `load`. When loading the polygons, the following form will appear. There, you are asked to choose the mode between the two following options:
+  - Labelizer: This mode is used to add a column to the dataset with the categories of your choice. You have the possibility to use a _selection column_ by clicking on the corresponding checkbox. If so, you will need to select between the existing columns and then assign a display value for each different values in this column. The app will not allow a column with more than 6 different values. You will then need to enter the name of the new column under _Create column of interest_ and give each value (which is going to be saved inside the resulting file) + the corresponding display value. Here also, you can not create more than 6 different values.
+  - Correcter: This mode aims at correcting an existing column of the dataset. You will need to select which one under _Select column of interest_ and then provide a display value for each different value of the column. The app will also not allow to choose a column with more than 6 different values.
 <center>
     <img src="src/images_tuto/img_1.png" alt="Description of image">
 </center>
@@ -42,13 +41,12 @@ Here is a small step-by-step to labelize or correct your first dataset:
     <img src="src/images_tuto/labelizer_tuto_panel_2.png" alt="Description of image">
 </center>
 
-5) Inside this folder, you will find 3 or 4 files:
+5) Inside this folder, you will find 3 files:
    -  the new version of the polygon file. 
      - In **correcter** mode, it will be a copy with the modifications.
      - In **labelizer** mode, only the modified samples will be saved in this file
    - a .csv version of the new polygon file for ease of verification purpose
    - a .txt file with the lof of all  the modification that have been made.
-   - Only in **correcter** mode; an image with the computed performances of the original file with respect to the corrections made.
 <center>
     <img src="src/images_tuto/img_4.png" alt="Description of image">
 </center>
