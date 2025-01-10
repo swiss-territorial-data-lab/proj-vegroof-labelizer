@@ -43,8 +43,8 @@ Here is a small step-by-step to labelize or correct your first dataset:
 
 5) Inside this folder, you will find 3 files:
    -  the new version of the polygon file. 
-     - In **correcter** mode, it will be a copy with the modifications.
-     - In **labelizer** mode, only the modified samples will be saved in this file
+      - In **correcter** mode, it will be a copy with the modifications.
+      - In **labelizer** mode, only the modified samples will be saved in this file
    - a .csv version of the new polygon file for ease of verification purpose
    - a .txt file with the lof of all  the modification that have been made.
 <center>
