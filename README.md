@@ -6,12 +6,17 @@ It can achieve two different tasks:
 - the correction of a dataset. This mode allows to change the value of the predicted class for each sample.
 
 ## Initialization
+**Warning: This project was developped on Windows and instances cloned on Linux system have shown difficulties to install some libraries. If possible, it is recommended to install it on a version 3.9 of Python on Windows 11.**
 There is two ways of setting the environnement up from the root of the project:
 - Pip:
   1) Creation of the environement: `python -m venv .venv`
-  2) Importing the libraries through the requirements.txt file: `pip install -r requirements.txt`
+  2) Connect to it:
+      - on Windows: `./.venv/Scripts/activate`
+      - on Linux: `./.venv/bin/activate`
+  4) Importing the libraries through the requirements.txt file: `pip install -r requirements.txt`
 - Conda:
   1) Simply run the following command: `conda env create -f environment.yml`
+  2) Connect to it: `conda activate geo-labelizer`
       
 ## Tutorial
 Here is a small step-by-step to labelize or correct your first dataset:
@@ -50,6 +55,12 @@ Here is a small step-by-step to labelize or correct your first dataset:
 <center>
     <img src="src/images_tuto/img_4.png" alt="Description of image">
 </center>
+
+6) Shortkeys:
+   - In order to make the usage of the application more ergonomical, the following actions were mapped to the following keys:
+      - Move forward: Right arrow, Key 'D', Spacebar
+      - Move backward: Left arrow, key 'A'
+      - Save project: Ctrl + S
 
 
 
