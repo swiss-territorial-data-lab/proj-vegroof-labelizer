@@ -1,5 +1,6 @@
 import numpy as np
 import tkinter as tk
+import geopandas as gpd
 from tkinter import Label, Frame, Text, messagebox, Checkbutton, Toplevel
 from tkinter import ttk
 from tkinter.ttk import Combobox
@@ -464,9 +465,14 @@ def sort_and_filter(self):
     Returns:
         DataFrame - A filtered and sorted copy of the dataset.
     """
-    shown_cat_keys = [key for key,val in self.frac_col_val_to_lbl.items() if val in self.shown_cat]
-    indexes = self.new_dataset.loc[self.new_dataset[self.frac_col].astype('string').isin(shown_cat_keys)].index
-    new_df = self.new_dataset.loc[indexes].copy()
+    new_df = gpd.GeoDataFrame()
+    if self.frac_col != '':
+        shown_cat_keys = [key for key,val in self.frac_col_val_to_lbl.items() if val in self.shown_cat]
+        indexes = self.new_dataset.loc[self.new_dataset[self.frac_col].astype('string').isin(shown_cat_keys)].index
+        new_df = self.new_dataset.loc[indexes].copy()
+    else:
+        new_df = self.new_dataset.copy()
+
     if self.order_var in list(self.new_dataset.columns):
         new_df = new_df.sort_values(
             by=[self.order_var], 
