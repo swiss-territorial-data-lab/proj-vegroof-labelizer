@@ -436,10 +436,8 @@ class ImageViewer:
 
         # update menu enabling-state
         if self.mode == 'labelizer' and self.frac_col == '':
-            self.menu_bar.entryconfig("Order", state='disabled')
             self.select_menu.entryconfig("categories to show", state="disabled")
         else:
-            self.menu_bar.entryconfig("Order", state='normal')
             self.select_menu.entryconfig("categories to show", state="normal")
 
     def attribute_button_command(self, button: ttk.Button, val):
