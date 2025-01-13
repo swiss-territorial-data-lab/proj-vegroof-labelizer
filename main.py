@@ -94,10 +94,10 @@ class ImageViewer:
         self.menu_bar.add_cascade(label='Load', menu=load_menu)
 
         #   _add selection of categories and metadata to show
-        select_menu = Menu(self.menu_bar, tearoff=0)
-        select_menu.add_command(label="categories to show", command=partial(open_list_cat, self))
-        select_menu.add_command(label="metadata to show", command=partial(open_list_meta, self))
-        self.menu_bar.add_cascade(label='Select', menu=select_menu)
+        self.select_menu = Menu(self.menu_bar, tearoff=0)
+        self.select_menu.add_command(label="categories to show", command=partial(open_list_cat, self))
+        self.select_menu.add_command(label="metadata to show", command=partial(open_list_meta, self))
+        self.menu_bar.add_cascade(label='Select', menu=self.select_menu)
 
         #   _add ordering
         self.menu_bar.add_command(label="Order", command=partial(order, self))
@@ -409,15 +409,11 @@ class ImageViewer:
         self.infos_sample.config(text = meta_text if len(self.metadata) > 0 else '-')
 
         # update image title
-        cat_selection = self.dataset_to_show.loc[self.sample_index, self.frac_col]
+        # if self.frac_col != '':
+        #     cat_selection = self.dataset_to_show.loc[self.sample_index, self.frac_col]
         cat_interest = self.dataset_to_show.loc[self.sample_index, self.interest_col]
         interest_lbl = self.interest_col_val_to_lbl[cat_interest] if cat_interest != "" else '-'
-        if self.mode == 'labelizer':
-            select_lbl = self.frac_col_val_to_lbl[str(cat_selection)]
-            select_lbl = select_lbl[0:13] + '..' if len(select_lbl) > 15 else select_lbl
-            interest_lbl = interest_lbl[0:13] + '..' if len(interest_lbl) > 15 else interest_lbl
-            self.title.config(text=f"select val: {select_lbl} | new val: {interest_lbl}")
-        elif self.mode == 'correcter':
+        if self.mode in ['correcter', 'labelizer']:
             self.title.config(text=f"value: {interest_lbl}")
         else:
             self.title.config(text="No sample to display")
@@ -437,6 +433,14 @@ class ImageViewer:
                 button.config(state='normal')
         if self.sample_pos == self.num_dataset_to_show - 1:
             messagebox.showinfo("informaton", "Last sample reached !")
+
+        # update menu enabling-state
+        if self.mode == 'labelizer' and self.frac_col == '':
+            self.menu_bar.entryconfig("Order", state='disabled')
+            self.select_menu.entryconfig("categories to show", state="disabled")
+        else:
+            self.menu_bar.entryconfig("Order", state='normal')
+            self.select_menu.entryconfig("categories to show", state="normal")
 
     def attribute_button_command(self, button: ttk.Button, val):
         """

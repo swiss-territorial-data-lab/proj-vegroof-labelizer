@@ -38,21 +38,52 @@ def load(self, mode=0):
                 )
                 self.buffer.current_pos = self.sample_pos
                 self.buffer.start()
-                self.show_image()
             except Exception as e:
                 print("An error occured while initiating buffer: ", e)
                 raise e
             finally:
-                self.update_infos()
 
                 # Activate navigation buttons
                 set_all_states(self.root, 'normal', self.menu_bar)
                 self.loading_running = False
                 self.buffer_infos_lbl.config(text="")
 
+                # Show first image and set infos
+                self.show_image()
+                self.update_infos()
+
                 # Start autosave
                 self.do_autosave = True
                 self.auto_save()
+
+    def load_save_file(filepath:str):
+        try:
+            with open(filepath, 'rb') as in_file:
+                dict_save = pickle.load(in_file)
+            self.polygon_path = dict_save['polygon_path']
+            self.raster_path = dict_save['raster_path']
+            self.dataset = dict_save['dataset']
+            self.new_dataset = dict_save['new_dataset']
+            self.dataset_to_show = dict_save['dataset_to_show']
+            self.new_crs = dict_save['new_crs']
+            self.old_crs = dict_save['old_crs']
+            self.sample_index = dict_save['sample_index']
+            self.sample_pos = dict_save['sample_pos']
+            self.shown_cat = dict_save['shown_cat']
+            self.shown_meta = dict_save['shown_meta']
+            self.order_var = dict_save['order_var']
+            self.list_rasters_src = dict_save['list_rasters_src']
+            self.mode = dict_save['mode']
+            self.frac_col = dict_save['frac_col']
+            self.interest_col = dict_save['interest_col']
+            self.frac_col_lbl_to_val = dict_save['frac_col_lbl_to_val']
+            self.frac_col_val_to_lbl = dict_save['frac_col_val_to_lbl']
+            self.interest_col_lbl_to_val = dict_save['interest_col_lbl_to_val']
+            self.interest_col_val_to_lbl = dict_save['interest_col_val_to_lbl']
+            self.changes_log = dict_save['changes_log']
+        except Exception as e:
+            print("An error occured. The save file \"save_file.pkl\" must be absent or corrupted.")
+            print(f"Original error: {e}")
 
     # test if ongoing unsaved project
     if self.UnsavedChanges == True:
@@ -81,33 +112,7 @@ def load(self, mode=0):
             new_polygon_path = ''.join(new_polygon_path)
             if os.path.exists(new_polygon_path):
                 if messagebox.askyesno("Save found", "A save already exists for this file. Do you want to continue from it?"):
-                    try:
-                        with open(os.path.join(new_polygon_path, 'save_file.pkl'), 'rb') as in_file:
-                            dict_save = pickle.load(in_file)
-                        self.polygon_path = dict_save['polygon_path']
-                        self.raster_path = dict_save['raster_path']
-                        self.dataset = dict_save['dataset']
-                        self.new_dataset = dict_save['new_dataset']
-                        self.dataset_to_show = dict_save['dataset_to_show']
-                        self.new_crs = dict_save['new_crs']
-                        self.old_crs = dict_save['old_crs']
-                        self.sample_index = dict_save['sample_index']
-                        self.sample_pos = dict_save['sample_pos']
-                        self.shown_cat = dict_save['shown_cat']
-                        self.shown_meta = dict_save['shown_meta']
-                        self.order_var = dict_save['order_var']
-                        self.list_rasters_src = dict_save['list_rasters_src']
-                        self.mode = dict_save['mode']
-                        self.frac_col = dict_save['frac_col']
-                        self.interest_col = dict_save['interest_col']
-                        self.frac_col_lbl_to_val = dict_save['frac_col_lbl_to_val']
-                        self.frac_col_val_to_lbl = dict_save['frac_col_val_to_lbl']
-                        self.interest_col_lbl_to_val = dict_save['interest_col_lbl_to_val']
-                        self.interest_col_val_to_lbl = dict_save['interest_col_val_to_lbl']
-                        self.changes_log = dict_save['changes_log']
-                    except Exception as e:
-                        print("An error occured. The save file \"save_file.pkl\" must be absent or corrupted.")
-                        print(f"Original error: {e}")
+                    load_save_file(os.path.join(new_polygon_path, 'save_file.pkl'))
                     mode = -1
             if mode != -1:
                 # reset variables
@@ -151,33 +156,7 @@ def load(self, mode=0):
         )
 
         if save_path != "":
-            try:
-                with open(os.path.join(save_path), 'rb') as in_file:
-                    dict_save = pickle.load(in_file)
-                self.polygon_path = dict_save['polygon_path']
-                self.raster_path = dict_save['raster_path']
-                self.dataset = dict_save['dataset']
-                self.new_dataset = dict_save['new_dataset']
-                self.dataset_to_show = dict_save['dataset_to_show']
-                self.new_crs = dict_save['new_crs']
-                self.old_crs = dict_save['old_crs']
-                self.sample_index = dict_save['sample_index']
-                self.sample_pos = dict_save['sample_pos']
-                self.shown_cat = dict_save['shown_cat']
-                self.shown_meta = dict_save['shown_meta']
-                self.order_var = dict_save['order_var']
-                self.list_rasters_src = dict_save['list_rasters_src']
-                self.mode = dict_save['mode']
-                self.frac_col = dict_save['frac_col']
-                self.interest_col = dict_save['interest_col']
-                self.frac_col_lbl_to_val = dict_save['frac_col_lbl_to_val']
-                self.frac_col_val_to_lbl = dict_save['frac_col_val_to_lbl']
-                self.interest_col_lbl_to_val = dict_save['interest_col_lbl_to_val']
-                self.interest_col_val_to_lbl = dict_save['interest_col_val_to_lbl']
-                self.changes_log = dict_save['changes_log']
-            except Exception as e:
-                print("An error occured. The save file \"save_file.pkl\" must be absent or corrupted.")
-                print(f"Original error: {e}")
+            load_save_file(save_path)
 
     if self.polygon_path != "" and self.raster_path != "":
         # Attriute new crs
@@ -193,7 +172,7 @@ def load(self, mode=0):
             label = label[0:13] + '..' if len(label) > 15 else label
             self.lst_buttons_category[idx].config(text=label, state='normal')
             self.attribute_button_command(self.lst_buttons_category[idx], val)
-        
+
         # Initiate buffer
         set_all_states(self.root, 'disabled', self.menu_bar)
         self.buffer_infos_lbl.config(text="Initialising Temp storages...")
@@ -291,10 +270,6 @@ def exit(self):
     Returns:
         None
     """
-    # Check if program processing
-    # if self.loading_running:
-    #     messagebox.showwarning("Process running", "Please, wait for the running processes to finish before quitting.")
-    #     return
     # Check if unsaved changes
     if self.UnsavedChanges == True:
         result = messagebox.askyesnocancel("Confirmation", "There is unsaved changes! Do you want to save?")
