@@ -198,7 +198,8 @@ def load(self, mode=0):
         set_all_states(self.root, 'disabled', self.menu_bar)
         self.buffer_infos_lbl.config(text="Initialising Temp storages...")
         self.loading_running = True
-        self.thread = threading.Thread(target=start_buffer).start()
+        self.thread = threading.Thread(target=start_buffer)
+        self.thread.start()
 
     elif self.polygon_path != "" or self.raster_path != "":
         self.update_infos()
