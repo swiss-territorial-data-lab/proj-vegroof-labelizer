@@ -5,3 +5,4 @@ old_venv/*
 *.zip
 _internal/*
 *.exe
+**/__pycache__/*
