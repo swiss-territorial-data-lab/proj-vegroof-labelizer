@@ -473,7 +473,7 @@ def sort_and_filter(self):
     shown_cat_keys = [key for key,val in self.frac_col_val_to_lbl.items() if val in self.shown_cat]
     indexes = self.new_dataset.loc[self.new_dataset[self.frac_col].astype('string').isin(shown_cat_keys)].index
     new_df = self.new_dataset.loc[indexes].copy()
-    if self.order_var != "":
+    if self.order_var in list(self.new_dataset.columns):
         new_df = new_df.sort_values(
             by=[self.order_var], 
             axis=0, 
@@ -492,8 +492,11 @@ def order(self):
         None
     """
     def ok_button_pressed(window, combobox, radio_selection):
-        if combobox.get() == "Select an option":
-            window.destroy()
+        if combobox.get() not in list(self.new_dataset.columns):
+            messagebox.showwarning("Wrong value", "Wrong ordering value given.")
+            default_combobox = "Select an option" if self.order_var == "" else self.order_var
+            combobox.set(default_combobox)  # Texte par défaut
+            order_window.focus_set()
             return
         self.order_var = combobox.get()
         order = radio_selection.get()
@@ -538,7 +541,7 @@ def order(self):
 
     # create the Combobox
     combobox = ttk.Combobox(order_window, values=metadatas)
-    default_combobox = "Select an option" if self.order_var == None else self.order_var
+    default_combobox = "Select an option" if self.order_var == "" else self.order_var
     combobox.set(default_combobox)  # Texte par défaut
     combobox.pack(pady=20)
 
@@ -574,6 +577,7 @@ def open_list_cat(self):
         # Security
         if len(checked_items) == 0:
             messagebox.showwarning("Information", "At least one category must be selected!")
+            checkbox_window.focus_set()
             return
 
         checked_texts = [str(tree.item(item, "text")) for item in checked_items]
@@ -585,6 +589,7 @@ def open_list_cat(self):
         # If no samples with selection
         if len(self.dataset_to_show) == 0:
             messagebox.showwarning("Information", "With current selection, no samples are available!")
+            checkbox_window.focus_set()
             return
         
         # Set new current sample
@@ -851,14 +856,14 @@ def open_settings(self):
     frame_buffer = Frame(Settings_window, relief=tk.RIDGE, borderwidth=2, width=280, height=90)
     frame_buffer.pack(pady=10)
     frame_buffer.pack_propagate(False)
-    lbl_buffer_1 = Label(frame_buffer, text='Buffer sizes: ', justify='left', anchor='w', width=200)
+    lbl_buffer_1 = Label(frame_buffer, text='In-memory sizes: ', justify='left', anchor='w', width=200)
     lbl_buffer_1.pack(padx=10)
     
     #   _front buffer
     frame_buffer_front = Frame(frame_buffer, width=280, height=30)
     frame_buffer_front.pack()
     frame_buffer_front.pack_propagate(False)
-    lbl_buffer_front = Label(frame_buffer_front, text='\t     - front :', justify='right', anchor='w', width=20)
+    lbl_buffer_front = Label(frame_buffer_front, text='\t     - forward :', justify='right', anchor='w', width=20)
     lbl_buffer_front.pack(side='left', padx=10)
     txt_buffer_front = Text(frame_buffer_front, wrap='none', width=4, height=1)
     txt_buffer_front.pack(side='right', padx=30)
@@ -869,7 +874,7 @@ def open_settings(self):
     frame_buffer_back = Frame(frame_buffer, width=280, height=30)
     frame_buffer_back.pack()
     frame_buffer_back.pack_propagate(False)
-    lbl_buffer_back = Label(frame_buffer_back, text='\t     - back :', justify='left', anchor='w', width=20)
+    lbl_buffer_back = Label(frame_buffer_back, text='\t     - backward :', justify='left', anchor='w', width=20)
     lbl_buffer_back.pack(side='left', padx=10)
     txt_buffer_back = Text(frame_buffer_back, wrap='none', width=4, height=1)
     txt_buffer_back.pack(side='right', padx=30)

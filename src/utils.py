@@ -41,6 +41,7 @@ def load(self, mode=0):
                 self.show_image()
             except Exception as e:
                 print("An error occured while initiating buffer: ", e)
+                raise e
             finally:
                 self.update_infos()
 
@@ -94,6 +95,7 @@ def load(self, mode=0):
                         self.sample_pos = dict_save['sample_pos']
                         self.shown_cat = dict_save['shown_cat']
                         self.shown_meta = dict_save['shown_meta']
+                        self.order_var = dict_save['order_var']
                         self.list_rasters_src = dict_save['list_rasters_src']
                         self.mode = dict_save['mode']
                         self.frac_col = dict_save['frac_col']
@@ -112,7 +114,7 @@ def load(self, mode=0):
                 self.changes_log = []
                 self.shown_cat = []
                 self.shown_meta = []
-                self.order_var = None
+                self.order_var = ""
                 self.order_asc = True
 
                 # show mode choice window
@@ -163,6 +165,7 @@ def load(self, mode=0):
                 self.sample_pos = dict_save['sample_pos']
                 self.shown_cat = dict_save['shown_cat']
                 self.shown_meta = dict_save['shown_meta']
+                self.order_var = dict_save['order_var']
                 self.list_rasters_src = dict_save['list_rasters_src']
                 self.mode = dict_save['mode']
                 self.frac_col = dict_save['frac_col']
@@ -195,7 +198,7 @@ def load(self, mode=0):
         set_all_states(self.root, 'disabled', self.menu_bar)
         self.buffer_infos_lbl.config(text="Initialising Temp storages...")
         self.loading_running = True
-        threading.Thread(target=start_buffer).start()
+        self.thread = threading.Thread(target=start_buffer).start()
 
     elif self.polygon_path != "" or self.raster_path != "":
         self.update_infos()
@@ -255,6 +258,7 @@ def save(self, verbose=True):
             'sample_pos': self.sample_pos,
             'shown_cat': self.shown_cat,
             'shown_meta': self.shown_meta,
+            'order_var': self.order_var,
             'list_rasters_src': self.list_rasters_src,
             'mode': self.mode,
             'frac_col': self.frac_col,
@@ -287,10 +291,9 @@ def exit(self):
         None
     """
     # Check if program processing
-    if self.loading_running:
-        messagebox.showwarning("Process running", "Please, wait for the running processes to finish before quitting.")
-        return
-    
+    # if self.loading_running:
+    #     messagebox.showwarning("Process running", "Please, wait for the running processes to finish before quitting.")
+    #     return
     # Check if unsaved changes
     if self.UnsavedChanges == True:
         result = messagebox.askyesnocancel("Confirmation", "There is unsaved changes! Do you want to save?")
@@ -300,9 +303,16 @@ def exit(self):
             pass
         else:
             return
-    
-    # Purge the buffer before quitting
-    if self.buffer:
-        self.buffer.purge()
+    try:
+        # Close thread
+        if self.thread:
+            self.thread.join()
 
-    self.root.quit()
+        # Purge the buffer before quitting
+        if self.buffer:
+            self.buffer.purge()
+
+        self.root.quit()
+    except Exception as e:
+        print("An error happened during quitting. The temp folder might still be in place but will be automatically reset during next run.\n Killing process..")
+        os._exit(0)

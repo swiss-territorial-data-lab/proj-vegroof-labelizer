@@ -69,6 +69,7 @@ class ImageViewer:
 
         #   _others
         self.do_autosave = False
+        self.thread = None
 
         # Set a custom font style for the app
         self.custom_font = font.Font(family="Helvetica", size=10, weight="bold")

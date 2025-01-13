@@ -72,9 +72,10 @@ def show_image(self):
         print("Restarting buffer..")
         self.buffer.reset()
         error_happened = True
-    finally:
-        if error_happened:
-            self.show_image()
+        raise e
+    # finally:
+    #     if error_happened:
+    #         self.show_image()
 
 
 def zoom(self, event):    

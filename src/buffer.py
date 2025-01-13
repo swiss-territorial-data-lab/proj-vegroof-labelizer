@@ -2,7 +2,6 @@ import os
 import shutil
 import numpy as np
 from time import sleep
-import tempfile
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
 import rasterio
@@ -200,7 +199,7 @@ def clip_and_store(pause_event, polygons, margin_around_image, list_rasters_src,
                     sleep(0.1)
 
         except Exception as e:
-            buffer_results.append((sample_pos, f"ERROR: {str(e)}",0,0))
+            buffer_results.append((99999, f"ERROR: {str(e)}",0,0))
             print("Error during clipping: ", e)
             for frame in traceback.extract_tb(e.__traceback__):
                 print(f"File: {frame.filename}, Line: {frame.lineno}, Function: {frame.name}")
@@ -258,8 +257,20 @@ class Buffer():
         self.result_back_list = self.manager.list()
 
         #   _create a temporary folder for the buffer
-        self.temp_front_dir = tempfile.mkdtemp()
-        self.temp_back_dir = tempfile.mkdtemp()
+        self.dict_temp_arch = {
+            'root': "./temp",
+            'forward': "./temp/forward",
+            'backward': "./temp/backward",
+        }
+        if os.path.exists(self.dict_temp_arch['root']):
+            shutil.rmtree(self.dict_temp_arch['root'])
+        for val in self.dict_temp_arch.values():
+            os.mkdir(val)
+            
+        # self.temp_front_dir = tempfile.mkdtemp()
+        # self.temp_back_dir = tempfile.mkdtemp()
+        self.temp_front_dir = self.dict_temp_arch['forward']
+        self.temp_back_dir = self.dict_temp_arch['backward']
 
         #   _events to control the process
         self.pause_event_front = multiprocessing.Event()
@@ -323,7 +334,7 @@ class Buffer():
         try:
             # Update current sample
             old_pos, old_path, new_deltax, new_deltay = self.result_front_list.pop(0)  
-            self.current_pos, self.current_file_path, _, _ = self.result_front_list[0]
+            self.current_pos, self.current_file_path, self.current_deltax, self.current_deltay = self.result_front_list[0]
             self.buffer_front_size.value -= 1
             new_back_path = "no-sample"
             if old_path != 'no-sample':
@@ -354,6 +365,8 @@ class Buffer():
             # Update current sample
             new_pos, new_path, new_deltax, new_deltay = self.result_back_list.pop(0)
             self.current_pos = new_pos
+            self.current_deltax = new_deltax
+            self.current_deltay = new_deltay
             self.buffer_back_size.value -= 1
             new_current_path = 'no-sample'
             if new_path != 'no-sample':
@@ -452,14 +465,16 @@ class Buffer():
         """Terminates buffer processes and removes temporary directories."""
     
         # Clean up
-        self.buffer_front_process.terminate()
-        self.buffer_front_process.join()
-        self.buffer_back_process.terminate()
-        self.buffer_back_process.join()
+        if self.buffer_front_process:
+            self.buffer_front_process.terminate()
+            self.buffer_front_process.join()
+        if self.buffer_back_process:
+            self.buffer_back_process.terminate()
+            self.buffer_back_process.join()
 
         # Optionally delete the temp directory after use
-        shutil.rmtree(self.temp_front_dir)
-        shutil.rmtree(self.temp_back_dir)
+        shutil.rmtree(self.dict_temp_arch['root'])
+        # shutil.rmtree(self.temp_back_dir)
 
     def restart(self, front_max_size, back_max_size, margin_around_image):
         """
@@ -475,8 +490,12 @@ class Buffer():
             self.purge()
         finally:
             #   _create a temporary folder for the buffer
-            self.temp_front_dir = tempfile.mkdtemp()
-            self.temp_back_dir = tempfile.mkdtemp()
+            if os.path.exists(self.dict_temp_arch['root']):
+                shutil.rmtree(self.dict_temp_arch['root'])
+            for val in self.dict_temp_arch.values():
+                os.mkdir(val)
+            # self.temp_front_dir = tempfile.mkdtemp()
+            # self.temp_back_dir = tempfile.mkdtemp()
 
             # Update 
             #   _clear
