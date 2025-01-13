@@ -7,6 +7,7 @@ It can achieve two different tasks:
 
 ## Initialization
 **Warning: This project was developped on Windows and instances cloned on Linux system have shown difficulties to install some libraries. If possible, it is recommended to install it on a version 3.9 of Python on Windows 11.**
+
 There is two ways of setting the environnement up from the root of the project:
 - Pip:
   1) Creation of the environement: `python -m venv .venv`
