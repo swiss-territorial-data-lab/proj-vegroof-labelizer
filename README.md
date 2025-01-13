@@ -24,14 +24,14 @@ Here is a small step-by-step to labelize or correct your first dataset:
 1) When launching the software, the following window will appear.
 
 <center>
-    <img src="src/images_tuto/labelizer_tuto_panel_0.png" alt="Description of image">
+    <img src="src/images/images_tuto/labelizer_tuto_panel_0.png" alt="Description of image">
 </center>
 
 2)  The first step is to load rasters and polygons from the menu `load`. When loading the polygons, the following form will appear. There, you are asked to choose the mode between the two following options:
   - Labelizer: This mode is used to add a column to the dataset with the categories of your choice. You have the possibility to use a _selection column_ by clicking on the corresponding checkbox. If so, you will need to select between the existing columns and then assign a display value for each different values in this column. The app will not allow a column with more than 6 different values. You will then need to enter the name of the new column under _Create column of interest_ and give each value (which is going to be saved inside the resulting file) + the corresponding display value. Here also, you can not create more than 6 different values.
   - Correcter: This mode aims at correcting an existing column of the dataset. You will need to select which one under _Select column of interest_ and then provide a display value for each different value of the column. The app will also not allow to choose a column with more than 6 different values.
 <center>
-    <img src="src/images_tuto/img_1.png" alt="Description of image">
+    <img src="src/images/images_tuto/img_1.png" alt="Description of image">
 </center>
 
 3) Once the poylgon file and the raster location are given, you will now be able to start working on the dataset:
@@ -43,7 +43,7 @@ Here is a small step-by-step to labelize or correct your first dataset:
 4) When the job is done, or if you want to save your work in progress, you can press the `save` tab. By doint so, a folder will be created in the same location as your polygon file with the same name + the suffix `-corrected`.
 
 <center>
-    <img src="src/images_tuto/labelizer_tuto_panel_2.png" alt="Description of image">
+    <img src="src/images/images_tuto/labelizer_tuto_panel_2.png" alt="Description of image">
 </center>
 
 5) Inside this folder, you will find 3 files:
@@ -53,7 +53,7 @@ Here is a small step-by-step to labelize or correct your first dataset:
    - a .csv version of the new polygon file for ease of verification purpose
    - a .txt file with the lof of all  the modification that have been made.
 <center>
-    <img src="src/images_tuto/img_4.png" alt="Description of image">
+    <img src="src/images/images_tuto/img_4.png" alt="Description of image">
 </center>
 
 6) Shortkeys:
