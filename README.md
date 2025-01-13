@@ -1,4 +1,4 @@
-# GeoLabelizer
+# GeoLabelizer 
 This project consist in the developpement of a small software to help with the visualization and manual labelization/correction of samples based on a set of rasters and a corresponding set of polygons.
 
 It can achieve two different tasks:
