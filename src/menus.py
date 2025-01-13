@@ -23,12 +23,6 @@ def thread_restart_buffer(self):
         self.buffer.restart(self.buffer_front_max_size, self.buffer_back_max_size, self.margin_around_image)
     except Exception as e:
         print("An error occured while restarting buffer: ", e)
-        # try:
-        #     save(self, verbose=False)
-        #     print("For safety measures, the current state of the work was saved.")
-        # except Exception as e:
-        #     print("During the management of the error, the program tried to save the work but did not manage due to the following error", e)
-        
     finally:
         self.loading_running = False
         self.update_infos()
@@ -517,7 +511,8 @@ def order(self):
         # Restart buffer
         self.buffer_infos_lbl.config(text="Restarting Temp storages...")
         self.loading_running = True
-        threading.Thread(target=thread_restart_buffer, args=[self,]).start()
+        self.thread = threading.Thread(target=thread_restart_buffer, args=[self,])
+        self.thread.start()
 
         window.destroy()
 
@@ -610,7 +605,8 @@ def open_list_cat(self):
         # Restart buffer
         self.buffer_infos_lbl.config(text="Restarting Temp storages...")
         self.loading_running = True
-        threading.Thread(target=thread_restart_buffer, args=[self,]).start()
+        self.thread = threading.Thread(target=thread_restart_buffer, args=[self,])
+        self.thread.start()
 
         window.destroy()
 
@@ -778,7 +774,7 @@ def open_settings(self):
 
         except Exception as e:
             messagebox.showwarning("warning", e)
-            Settings_window.focus_set()
+            settings_window.focus_set()
             return
         
         # Check if need to restart buffer
@@ -801,7 +797,8 @@ def open_settings(self):
             # Restart buffer
             self.buffer_infos_lbl.config(text="Restarting Temp storages...")
             self.loading_running = True
-            threading.Thread(target=thread_restart_buffer, args=[self,]).start()
+            self.thread = threading.Thread(target=thread_restart_buffer, args=[self,])
+            self.thread.start()
         else:
             self.update_infos()
 
@@ -809,14 +806,14 @@ def open_settings(self):
 
 
     # Create a Toplevel window (popup)
-    Settings_window = Toplevel(self.root)
-    Settings_window.title("Settings")
+    settings_window = Toplevel(self.root)
+    settings_window.title("Settings")
     root_pos = [self.root.winfo_x(), self.root.winfo_y()]
     root_dim = [self.root.winfo_width(), self.root.winfo_height()]
-    Settings_window.geometry(f"300x300+{int(root_pos[0]+root_dim[0]/2-200)}+{int(root_pos[1]+root_dim[1]/2-150)}")
+    settings_window.geometry(f"300x300+{int(root_pos[0]+root_dim[0]/2-200)}+{int(root_pos[1]+root_dim[1]/2-150)}")
 
     # Zooming part
-    frame_zooming = Frame(Settings_window, relief=tk.RIDGE, borderwidth=2, width=280, height=60)
+    frame_zooming = Frame(settings_window, relief=tk.RIDGE, borderwidth=2, width=280, height=60)
     frame_zooming.pack(pady=10, padx=10)
     frame_zooming.pack_propagate(False)
 
@@ -829,7 +826,7 @@ def open_settings(self):
     txt_zooming_bound = Text(frame_zooming_bound, wrap='none', width=4, height=1)
     txt_zooming_bound.pack(side="right", padx=30)
     txt_zooming_bound.insert("1.0", str(self.zooming_max))
-    txt_zooming_bound.bind("<Return>",  partial(ok_button_pressed, Settings_window))
+    txt_zooming_bound.bind("<Return>",  partial(ok_button_pressed, settings_window))
 
     #   _zooming drag linked to zoom
     frame_zooming_drag = Frame(frame_zooming, width=280, height=30)
@@ -842,7 +839,7 @@ def open_settings(self):
     cb_zooming_drag.pack(side='right', padx=30)
 
     # Context part
-    frame_context = Frame(Settings_window, relief=tk.RIDGE, borderwidth=2, width=280, height=40)
+    frame_context = Frame(settings_window, relief=tk.RIDGE, borderwidth=2, width=280, height=40)
     frame_context.pack(pady=10)
     frame_context.pack_propagate(False)
     lbl_context = Label(frame_context, text="Margin around image :", width=18, justify='left', anchor='w')
@@ -850,10 +847,10 @@ def open_settings(self):
     txt_context = Text(frame_context, wrap='none', width=4, height=1)
     txt_context.pack(side="right", padx=30)
     txt_context.insert("1.0", str(self.margin_around_image))
-    txt_context.bind("<Return>",  partial(ok_button_pressed, Settings_window))
+    txt_context.bind("<Return>",  partial(ok_button_pressed, settings_window))
 
     # Buffer part
-    frame_buffer = Frame(Settings_window, relief=tk.RIDGE, borderwidth=2, width=280, height=90)
+    frame_buffer = Frame(settings_window, relief=tk.RIDGE, borderwidth=2, width=280, height=90)
     frame_buffer.pack(pady=10)
     frame_buffer.pack_propagate(False)
     lbl_buffer_1 = Label(frame_buffer, text='In-memory sizes: ', justify='left', anchor='w', width=200)
@@ -868,7 +865,7 @@ def open_settings(self):
     txt_buffer_front = Text(frame_buffer_front, wrap='none', width=4, height=1)
     txt_buffer_front.pack(side='right', padx=30)
     txt_buffer_front.insert("1.0", str(self.buffer_front_max_size))
-    txt_buffer_front.bind("<Return>",  partial(ok_button_pressed, Settings_window))
+    txt_buffer_front.bind("<Return>",  partial(ok_button_pressed, settings_window))
 
     #   _back buffer
     frame_buffer_back = Frame(frame_buffer, width=280, height=30)
@@ -879,8 +876,8 @@ def open_settings(self):
     txt_buffer_back = Text(frame_buffer_back, wrap='none', width=4, height=1)
     txt_buffer_back.pack(side='right', padx=30)
     txt_buffer_back.insert("1.0", str(self.buffer_back_max_size))
-    txt_buffer_back.bind("<Return>",  partial(ok_button_pressed, Settings_window))
+    txt_buffer_back.bind("<Return>",  partial(ok_button_pressed, settings_window))
 
     # OK button
-    ok_button = ttk.Button(Settings_window, text='OK', command=partial(ok_button_pressed, Settings_window))
+    ok_button = ttk.Button(settings_window, text='OK', command=partial(ok_button_pressed, settings_window))
     ok_button.pack()

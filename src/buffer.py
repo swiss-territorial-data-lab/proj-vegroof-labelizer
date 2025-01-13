@@ -104,7 +104,6 @@ def clip_and_store(pause_event, polygons, margin_around_image, list_rasters_src,
                 
                 # Test if polygon match with one or multiple rasters:    
                 if len(matching_rasters) == 0:
-                    # raise ValueError("Polygon did not match any raster!")
                     buffer_results.append((sample_pos, "no-sample", 0, 0))
                     buffer_size.value += 1
                     print(f"New sample in buffer {buffer_type}: {sample_pos} - no-sample")
@@ -267,8 +266,6 @@ class Buffer():
         for val in self.dict_temp_arch.values():
             os.mkdir(val)
             
-        # self.temp_front_dir = tempfile.mkdtemp()
-        # self.temp_back_dir = tempfile.mkdtemp()
         self.temp_front_dir = self.dict_temp_arch['forward']
         self.temp_back_dir = self.dict_temp_arch['backward']
 
@@ -474,7 +471,6 @@ class Buffer():
 
         # Optionally delete the temp directory after use
         shutil.rmtree(self.dict_temp_arch['root'])
-        # shutil.rmtree(self.temp_back_dir)
 
     def restart(self, front_max_size, back_max_size, margin_around_image):
         """
@@ -494,8 +490,6 @@ class Buffer():
                 shutil.rmtree(self.dict_temp_arch['root'])
             for val in self.dict_temp_arch.values():
                 os.mkdir(val)
-            # self.temp_front_dir = tempfile.mkdtemp()
-            # self.temp_back_dir = tempfile.mkdtemp()
 
             # Update 
             #   _clear

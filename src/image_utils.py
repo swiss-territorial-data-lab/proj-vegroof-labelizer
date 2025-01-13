@@ -73,9 +73,9 @@ def show_image(self):
         self.buffer.reset()
         error_happened = True
         raise e
-    # finally:
-    #     if error_happened:
-    #         self.show_image()
+    finally:
+        if error_happened:
+            self.show_image()
 
 
 def zoom(self, event):    

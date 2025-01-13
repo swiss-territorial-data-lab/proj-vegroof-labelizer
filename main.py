@@ -5,8 +5,8 @@ from time import sleep
 import geopandas as gpd
 from functools import partial
 import threading
-from src.menus import *
-from src.utils import *
+from src.menus import open_list_cat, open_list_meta, order, open_settings, set_all_states, thread_restart_buffer
+from src.utils import load, save, exit
 from src.image_utils import show_image, zoom, drag_image, start_drag, update_image
 
 
@@ -254,7 +254,8 @@ class ImageViewer:
         self.image.bind("<Button-1>",lambda event:  start_drag(self, event))
 
         show_image(self)
-        threading.Thread(target=self.auto_process).start()
+        self.thread = threading.Thread(target=self.auto_process)
+        self.thread.start()
 
     def auto_save(self):
         """Automatically save changes at regular intervals if autosave is enabled."""
@@ -297,7 +298,8 @@ class ImageViewer:
         self.animate_loading_icon()
 
         # Run the time-consuming task in a separate thread
-        threading.Thread(target=self.long_task, daemon=True).start()
+        self.thread = threading.Thread(target=self.long_task, daemon=True)
+        self.thread.start()
 
     def show_image(self):
         """Displays the current image sample on the canvas."""
@@ -337,8 +339,8 @@ class ImageViewer:
         self.next_button.config(state='disabled')
 
         # Start the thread
-        thread = threading.Thread(target=thread_target)
-        thread.start()
+        self.thread = threading.Thread(target=thread_target)
+        self.thread.start()
 
     def show_previous_image(self):
         """Navigate to and display the previous image in the dataset."""
@@ -368,8 +370,8 @@ class ImageViewer:
         self.next_button.config(state='disabled')
 
         # Start the thread
-        thread = threading.Thread(target=thread_target)
-        thread.start()
+        self.thread = threading.Thread(target=thread_target)
+        self.thread.start()
     
     def update_infos(self):
         """Update displayed information about the dataset, metadata, and UI elements."""
@@ -449,10 +451,6 @@ class ImageViewer:
             if self.mode == 'correcter':
                 self.new_dataset.loc[self.sample_index, self.frac_col] = cat
                 self.dataset_to_show.loc[self.sample_index, self.frac_col] = cat
-                """if self.frac_col_val_to_lbl[str(cat)] not in self.shown_cat:
-                    self.dataset_to_show = self.dataset_to_show.drop(self.sample_index)
-                    self.sample_index = self.dataset_to_show.index[self.sample_pos]
-                    self.show_image()"""
 
             self.UnsavedChanges = True
             self.changes_log.append(f"Changing category of sample with index {self.sample_index} to '{cat}'")
@@ -479,7 +477,8 @@ class ImageViewer:
         # Restart buffer
         self.buffer_infos_lbl.config(text="Restarting Temp storages...")
         self.loading_running = True
-        threading.Thread(target=thread_restart_buffer, args=[self,]).start()
+        self.thread = threading.Thread(target=thread_restart_buffer, args=[self,])
+        self.thread.start()
         
     def remove_sample(self):
         """

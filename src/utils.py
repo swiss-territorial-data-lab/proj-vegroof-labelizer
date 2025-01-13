@@ -59,9 +59,9 @@ def load(self, mode=0):
         result = messagebox.askyesnocancel("Confirmation", "There is unsaved changes! Do you want to save?")
         if result == True:
             save(self)
-        elif result == False:
+        elif result == False:   # If answer is 'No'
             pass
-        else:
+        else:   # If answer is 'Cancel'
             return
 
     # load polygon
@@ -314,5 +314,5 @@ def exit(self):
 
         self.root.quit()
     except Exception as e:
-        print("An error happened during quitting. The temp folder might still be in place but will be automatically reset during next run.\n Killing process..")
+        print(f"An error happened during quitting. The temp folder might still be in place but will be automatically reset during next run.\n Error: {e}\nKilling process..")
         os._exit(0)
