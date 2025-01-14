@@ -22,7 +22,7 @@ There is two ways of setting the environnement up from the root of the project:
 ## Tutorial
 Here is a step-by-step procedure to labelize or correct your first dataset:
 
-1) When launching the software, the following window will appear.
+1) When launching the software by running `main.py`, the following window will appear.
 
 <center>
     <img src="src/images/images_tuto/labelizer_tuto_panel_0.png" alt="Description of image">
