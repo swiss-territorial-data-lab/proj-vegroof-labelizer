@@ -42,7 +42,7 @@ def show_image(self):
     if self.buffer:
         while self.buffer.current_file_path == "":
             sleep(0.1)
-    error_happened = False
+            
     try:
         # When no matching raster
         if len(self.list_rasters_src) == 0 or len(self.dataset_to_show) == 0 or (self.buffer and self.buffer.current_file_path == 'no-sample'):
@@ -77,10 +77,7 @@ def show_image(self):
         for frame in traceback.extract_tb(e.__traceback__):
                 print(f"File: {frame.filename}, Line: {frame.lineno}, Function: {frame.name}")
         self.buffer.current_file_path = 'no-sample'
-        error_happened = True
-    finally:
-        if error_happened:
-            self.show_image()
+        self.show_image()
 
 
 def zoom(self, event):    
