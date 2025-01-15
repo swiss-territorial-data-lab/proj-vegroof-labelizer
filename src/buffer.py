@@ -46,7 +46,8 @@ def clip_and_store(pause_event, polygons, margin_around_image, list_rasters_src,
                 task = buffer_tasks[0]
                 if task == "STOP":
                     break
-
+                
+                do_place_border = True
                 sample_pos = task
                 sample = polygons.iloc[sample_pos]
                 geometry = sample.geometry
@@ -112,12 +113,34 @@ def clip_and_store(pause_event, polygons, margin_around_image, list_rasters_src,
                 elif len(matching_rasters) == 1:
                     img_arr = matching_images[0]
                 else:
-                    img_arr, out_transform = merge(
-                    sources=matching_rasters, 
-                    nodata=0, 
-                    bounds=geom_large.bounds,
-                    resampling=rasterio.enums.Resampling.nearest
-                    )
+                    try:
+                        img_arr, out_transform = merge(
+                        sources=matching_rasters, 
+                        nodata=0, 
+                        bounds=geom_large.bounds,
+                        resampling=rasterio.enums.Resampling.nearest
+                        )
+                    except Exception as e:
+                        sub_list_matching_images = []
+                        sub_list_matching_rasters = []
+                        for raster in matching_rasters:
+                            try:
+                                img_arr, out_transform = mask(raster, [geometry], crop=True)
+                            except ValueError:
+                                continue
+                            else:
+                                sub_list_matching_images.append(img_arr)
+                                sub_list_matching_rasters.append(raster)
+
+                        max_size=0
+                        img_arr=np.empty((1,1,1))
+                        for img in sub_list_matching_images:
+                            if img.size > max_size:
+                                max_size = img.size
+                                img_arr = img
+                        deltax = 0
+                        deltay = 0
+                        do_place_border = False
 
                 if img_arr.shape[0] == 4:
                     img_arr = img_arr[1:4, ...]
@@ -138,15 +161,16 @@ def clip_and_store(pause_event, polygons, margin_around_image, list_rasters_src,
                 #   _display the clipped raster
                 show(img_arr, transform=out_transform, ax=ax, cmap="viridis")
 
-                coords_to_show = []
-                if geometry.geom_type == "Polygon":
-                    coords_to_show = [geometry.exterior.coords]
-                elif geometry.geom_type == "MultiPolygon":
-                    for polygon in geometry.geoms:
-                        coords_to_show = [polygon.exterior.coords for polygon in geometry.geoms]
-                for coords in coords_to_show:
-                    x, y = zip(*coords)
-                    ax.plot(x, y, color="yellow", linewidth=2, label="Original Polygon")
+                if do_place_border:
+                    coords_to_show = []
+                    if geometry.geom_type == "Polygon":
+                        coords_to_show = [geometry.exterior.coords]
+                    elif geometry.geom_type == "MultiPolygon":
+                        for polygon in geometry.geoms:
+                            coords_to_show = [polygon.exterior.coords for polygon in geometry.geoms]
+                    for coords in coords_to_show:
+                        x, y = zip(*coords)
+                        ax.plot(x, y, color="yellow", linewidth=2, label="Original Polygon")
 
                 # Remove axes and adjust layout to eliminate borders
                 plt.axis('off')
@@ -198,11 +222,13 @@ def clip_and_store(pause_event, polygons, margin_around_image, list_rasters_src,
                     sleep(0.1)
 
         except Exception as e:
-            buffer_results.append((99999, f"ERROR: {str(e)}",0,0))
+            buffer_results.append((sample_pos, "no-sample",0,0))
             print("Error during clipping: ", e)
             for frame in traceback.extract_tb(e.__traceback__):
                 print(f"File: {frame.filename}, Line: {frame.lineno}, Function: {frame.name}")
             buffer_size.value += 1
+            del buffer_tasks[0]
+
     print('Buffer terminated!')
     buffer_results.append('DONE')
 

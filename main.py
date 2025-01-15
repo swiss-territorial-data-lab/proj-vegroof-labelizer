@@ -49,7 +49,7 @@ class ImageViewer:
         self.order_asc = True
         self.metadata = {}
 
-        self.zooming_max = 1.5
+        self.zooming_max = 5.0
         self.drag_prop_to_zoom = True
         self.margin_around_image = 0
       

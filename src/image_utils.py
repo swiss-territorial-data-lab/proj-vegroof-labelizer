@@ -3,6 +3,7 @@ from time import sleep
 import tkinter as tk
 from shapely.affinity import scale
 from shapely.geometry import MultiPolygon
+import traceback
 
 
 def scale_geometry(geometry, xfact, yfact):
@@ -60,19 +61,23 @@ def show_image(self):
         self.image_id = self.image.create_image(0, 0, anchor=tk.NW, image=self.photo)
 
         # Apply initial zoom
-        a = (max(self.buffer.current_deltax, self.buffer.current_deltay) + 2 * self.margin_around_image)
-        b = max(self.buffer.current_deltax, self.buffer.current_deltay)
-        self.initial_zoom = b and a / b or 0    # fancy way to do a/b and avoid divisions by 0
-        self.current_zoom = max(1.0, self.initial_zoom / 1.1)
+        if self.buffer.current_deltax == 0 and self.buffer.current_deltay == 0:
+            self.initial_zoom = 1.0
+            self.current_zoom = 1.0
+        else:
+            a = (max(self.buffer.current_deltax, self.buffer.current_deltay) + 2 * self.margin_around_image)
+            b = max(self.buffer.current_deltax, self.buffer.current_deltay)
+            self.initial_zoom = b and a / b or 0    # fancy way to do a/b and avoid divisions by 0
+            self.current_zoom = max(1.0, self.initial_zoom / 1.1)
         self.offset_x = 0.5
         self.offset_y = 0.5
         self.update_image()
     except Exception as e:
         print("An error while trying to show image: ", e)
-        print("Restarting buffer..")
-        self.buffer.reset()
+        for frame in traceback.extract_tb(e.__traceback__):
+                print(f"File: {frame.filename}, Line: {frame.lineno}, Function: {frame.name}")
+        self.buffer.current_file_path = 'no-sample'
         error_happened = True
-        raise e
     finally:
         if error_happened:
             self.show_image()
