@@ -6,3 +6,4 @@ old_venv/*
 _internal/*
 *.exe
 **/__pycache__/*
+.venv/*
