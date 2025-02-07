@@ -115,7 +115,7 @@ def clip_and_store(pause_event, polygons, margin_around_image, list_rasters_src,
                 else:
                     try:
                         img_arr, out_transform = merge(
-                        sources=matching_rasters, 
+                        matching_rasters, 
                         nodata=0, 
                         bounds=geom_large.bounds,
                         resampling=rasterio.enums.Resampling.nearest
