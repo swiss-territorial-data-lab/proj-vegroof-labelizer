@@ -13,6 +13,7 @@ from shapely.geometry import Polygon
 import multiprocessing
 from multiprocessing import Manager
 import traceback
+from src.constants import IM_EXTENSION
 
 
 def clip_and_store(pause_event, polygons, margin_around_image, list_rasters_src, buffer_tasks, buffer_results, buffer_size, buffer_max_size, img_size, temp_dir, buffer_type):
@@ -248,7 +249,7 @@ class Buffer():
         self.list_rasters_src = []
         for r, _, f in os.walk(self.rasters_src):
             for file in f:
-                if file.endswith('.tif'):
+                if file.endswith(IM_EXTENSION):
                     file_src = r + '/' + file
                     file_src = file_src.replace('\\','/')
                     self.list_rasters_src.append(file_src)

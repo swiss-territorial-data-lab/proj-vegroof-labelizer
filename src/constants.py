@@ -1,0 +1,1 @@
+IM_EXTENSION = '.vrt'

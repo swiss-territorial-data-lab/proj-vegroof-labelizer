@@ -6,6 +6,7 @@ import geopandas as gpd
 import threading
 from src.buffer import Buffer
 from src.menus import set_all_states, menu_mode_choice
+from src.constants import IM_EXTENSION
 
 def load(self, mode=0):
     """
@@ -140,7 +141,7 @@ def load(self, mode=0):
             self.list_rasters_src = []
             for r, d, f in os.walk(self.raster_path):
                 for file in f:
-                    if file.endswith('.tif'):
+                    if file.endswith(IM_EXTENSION):
                         file_src = r + '/' + file
                         file_src = file_src.replace('\\','/')
                         self.list_rasters_src.append(file_src)
