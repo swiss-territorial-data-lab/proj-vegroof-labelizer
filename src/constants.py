@@ -1,1 +1,1 @@
-IM_EXTENSION = '.vrt'
+IM_EXTENSION = '.tif'
