@@ -22,6 +22,7 @@ There is two ways of setting the environnement up from the root of the project:
 ## Tutorial
 Here is a step-by-step procedure to labelize or correct your first dataset:
 
+0) Before starting, check in `src\constants.py`, that the given extension correspond to the one of your image files. Are the images given in TIF or do you want to read a VRT based on the TIF ? 
 1) When launching the software by running `main.py`, the following window will appear.
 
 <center>
